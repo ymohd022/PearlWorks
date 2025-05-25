@@ -1,0 +1,193 @@
+<div class="login-container">
+  <div class="container-fluid h-100">
+    <div class="row h-100">
+      <!-- Left side - Branding -->
+      <div class="col-md-6 d-none d-md-flex login-brand-side">
+        <div class="brand-content">
+          <div class="brand-logo">
+            <i class="fas fa-gem fa-3x text-white mb-3"></i>
+          </div>
+          <h2 class="text-white mb-3">PearlWorks</h2>
+          <p class="text-white-50 lead">
+            Professional Pearl, Jewelry & Stone Work Order Management System
+          </p>
+          <div class="features-list mt-4">
+            <div class="feature-item">
+              <i class="fas fa-check-circle text-success me-2"></i>
+              <span class="text-white">Order Tracking</span>
+            </div>
+            <div class="feature-item">
+              <i class="fas fa-check-circle text-success me-2"></i>
+              <span class="text-white">Quality Control</span>
+            </div>
+            <div class="feature-item">
+              <i class="fas fa-check-circle text-success me-2"></i>
+              <span class="text-white">Team Management</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side - Login Form -->
+      <div class="col-md-6 d-flex align-items-center justify-content-center login-form-side">
+        <div class="login-form-container">
+          <div class="text-center mb-4">
+            <h3 class="fw-bold text-dark">Welcome Back</h3>
+            <p class="text-muted">Please sign in to your account</p>
+          </div>
+
+          <!-- Error Alert -->
+          <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {{ errorMessage }}
+            <button type="button" class="btn-close" (click)="errorMessage = ''" aria-label="Close"></button>
+          </div>
+
+          <!-- Login Form -->
+          <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate>
+            <div class="mb-3">
+              <label for="email" class="form-label">Email Address</label>
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="fas fa-envelope text-muted"></i>
+                </span>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="email"
+                  formControlName="email"
+                  placeholder="Enter your email"
+                  [class.is-invalid]="f['email'].invalid && f['email'].touched"
+                >
+              </div>
+              <div *ngIf="f['email'].invalid && f['email'].touched" class="invalid-feedback d-block">
+                <div *ngIf="f['email'].errors?.['required']">Email is required</div>
+                <div *ngIf="f['email'].errors?.['email']">Please enter a valid email</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="fas fa-lock text-muted"></i>
+                </span>
+                <input
+                  type="password"
+                  class="form-control"
+                  id="password"
+                  formControlName="password"
+                  placeholder="Enter your password"
+                  [class.is-invalid]="f['password'].invalid && f['password'].touched"
+                >
+              </div>
+              <div *ngIf="f['password'].invalid && f['password'].touched" class="invalid-feedback d-block">
+                <div *ngIf="f['password'].errors?.['required']">Password is required</div>
+                <div *ngIf="f['password'].errors?.['minlength']">Password must be at least 6 characters</div>
+              </div>
+            </div>
+
+            <div class="d-grid mb-3">
+              <button
+                type="submit"
+                class="btn btn-primary btn-lg"
+                [disabled]="loading"
+              >
+                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <i *ngIf="!loading" class="fas fa-sign-in-alt me-2"></i>
+                {{ loading ? 'Signing In...' : 'Sign In' }}
+              </button>
+            </div>
+          </form>
+
+          <!-- Quick Login Section for Testing -->
+          <div class="quick-login-section mt-4">
+            <hr>
+            <p class="text-center text-muted small mb-3">Quick Login for Testing</p>
+            <div class="row g-2">
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-primary btn-sm w-100"
+                  (click)="quickLogin('admin')"
+                  [disabled]="loading"
+                >
+                  Admin
+                </button>
+              </div>
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-secondary btn-sm w-100"
+                  (click)="quickLogin('manager')"
+                  [disabled]="loading"
+                >
+                  Manager
+                </button>
+              </div>
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-info btn-sm w-100"
+                  (click)="quickLogin('framing')"
+                  [disabled]="loading"
+                >
+                  Framing
+                </button>
+              </div>
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-warning btn-sm w-100"
+                  (click)="quickLogin('setting')"
+                  [disabled]="loading"
+                >
+                  Setting
+                </button>
+              </div>
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-success btn-sm w-100"
+                  (click)="quickLogin('polish')"
+                  [disabled]="loading"
+                >
+                  Polish
+                </button>
+              </div>
+              <div class="col-6 col-md-4">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-danger btn-sm w-100"
+                  (click)="quickLogin('repair')"
+                  [disabled]="loading"
+                >
+                  Repair
+                </button>
+              </div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-12 col-md-6 mx-auto">
+                <button 
+                  type="button" 
+                  class="btn btn-outline-dark btn-sm w-100"
+                  (click)="quickLogin('dispatch')"
+                  [disabled]="loading"
+                >
+                  Dispatch
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="text-center mt-4">
+            <p class="text-muted small">
+              © 2024 PearlWorks. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,371 @@
+<div class="manager-dashboard">
+  <div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h2 class="mb-1">
+              <i class="fas fa-user-tie text-primary me-2"></i>
+              Manager Dashboard
+            </h2>
+            <p class="text-muted mb-0">Create and manage work orders</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div class="row mb-3" *ngIf="successMessage || errorMessage">
+      <div class="col-12">
+        <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
+          <i class="fas fa-check-circle me-2"></i>
+          {{ successMessage }}
+          <button type="button" class="btn-close" (click)="successMessage = ''" aria-label="Close"></button>
+        </div>
+        <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          {{ errorMessage }}
+          <button type="button" class="btn-close" (click)="errorMessage = ''" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Create Work Order Form -->
+      <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+              <i class="fas fa-plus-circle text-success me-2"></i>
+              Create New Work Order
+            </h5>
+          </div>
+          <div class="card-body">
+            <form [formGroup]="createOrderForm" (ngSubmit)="onSubmitOrder()">
+              <!-- Basic Information -->
+              <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                  <label class="form-label">Party Name *</label>
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    formControlName="partyName"
+                    [class.is-invalid]="createOrderForm.get('partyName')?.invalid && createOrderForm.get('partyName')?.touched"
+                    placeholder="Enter party name"
+                  >
+                  <div class="invalid-feedback">
+                    Party name is required (min 2 characters)
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">P.O. Number</label>
+                  <input type="text" class="form-control" formControlName="poNumber" placeholder="Enter PO number">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">P.O. Date</label>
+                  <input type="date" class="form-control" formControlName="poDate">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Expected Completion</label>
+                  <input type="date" class="form-control" formControlName="expectedCompletionDate">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Item Details *</label>
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    formControlName="itemDetails"
+                    [class.is-invalid]="createOrderForm.get('itemDetails')?.invalid && createOrderForm.get('itemDetails')?.touched"
+                    placeholder="e.g., Gold Ring Set"
+                  >
+                  <div class="invalid-feedback">
+                    Item details are required
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Model Number</label>
+                  <input type="text" class="form-control" formControlName="modelNumber" placeholder="Enter model number">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Description of Work</label>
+                  <textarea 
+                    class="form-control" 
+                    formControlName="descriptionOfWork" 
+                    rows="2"
+                    placeholder="Describe the work to be done..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <!-- Stones Section -->
+              <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="text-primary mb-0">
+                    <i class="fas fa-gem me-2"></i>
+                    Stones Information
+                  </h6>
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="addStoneRow()">
+                    <i class="fas fa-plus me-1"></i>Add Stone
+                  </button>
+                </div>
+                <div formArrayName="stones">
+                  <div *ngFor="let stone of stones.controls; let i = index" [formGroupName]="i" class="stone-row mb-3 p-3 border rounded">
+                    <div class="row g-2">
+                      <div class="col-md-3">
+                        <label class="form-label small">Type *</label>
+                        <input 
+                          type="text" 
+                          class="form-control form-control-sm" 
+                          formControlName="type"
+                          placeholder="e.g., Ruby, CZ"
+                        >
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small">Pieces *</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          formControlName="pieces"
+                          min="1"
+                        >
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Weight (g) *</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          formControlName="weightGrams"
+                          step="0.01"
+                          min="0.01"
+                        >
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Weight (ct) *</label>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          formControlName="weightCarats"
+                          step="0.01"
+                          min="0.01"
+                        >
+                      </div>
+                      <div class="col-md-1 d-flex align-items-end">
+                        <button 
+                          type="button" 
+                          class="btn btn-sm btn-outline-danger" 
+                          (click)="removeStoneRow(i)"
+                          [disabled]="stones.length === 1"
+                        >
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Worker Assignment Section -->
+              <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="text-primary mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Assign Workers (Optional)
+                  </h6>
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="addWorkerAssignment()">
+                    <i class="fas fa-plus me-1"></i>Add Assignment
+                  </button>
+                </div>
+                <div formArrayName="assignedWorkers">
+                  <div *ngFor="let worker of assignedWorkers.controls; let i = index" [formGroupName]="i" class="worker-row mb-3 p-3 border rounded bg-light">
+                    <div class="row g-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Stage</label>
+                        <select class="form-select form-select-sm" formControlName="stageType">
+                          <option value="">Select Stage</option>
+                          <option *ngFor="let stage of stageTypes" [value]="stage">
+                            {{ stage | titlecase }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small">Worker</label>
+                        <select 
+                          class="form-select form-select-sm" 
+                          formControlName="workerId"
+                          (change)="onWorkerChange(i)"
+                        >
+                          <option value="">Select Worker</option>
+                          <option 
+                            *ngFor="let w of getWorkersByStage(worker.get('stageType')?.value)" 
+                            [value]="w.id"
+                          >
+                            {{ w.name }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="col-md-2 d-flex align-items-end">
+                        <button 
+                          type="button" 
+                          class="btn btn-sm btn-outline-danger" 
+                          (click)="removeWorkerAssignment(i)"
+                        >
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <div class="d-grid">
+                <button 
+                  type="submit" 
+                  class="btn btn-primary btn-lg"
+                  [disabled]="submitting || createOrderForm.invalid"
+                >
+                  <span *ngIf="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                  <i *ngIf="!submitting" class="fas fa-save me-2"></i>
+                  {{ submitting ? 'Creating...' : 'Create Work Order' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Work Orders List -->
+      <div class="col-lg-6 mb-4">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+              <i class="fas fa-list-alt text-primary me-2"></i>
+              Work Orders
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            <div *ngIf="loading" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            <div *ngIf="!loading && workOrders.length === 0" class="text-center py-4 text-muted">
+              <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+              No work orders found
+            </div>
+            <div class="work-orders-list">
+              <div *ngFor="let order of workOrders" class="work-order-item p-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <h6 class="mb-1">
+                      <strong class="text-primary">{{ order.workOrderNumber }}</strong>
+                    </h6>
+                    <div class="text-muted small">
+                      {{ order.partyName }} • {{ formatDate(order.createdDate) }}
+                    </div>
+                    <div class="small">{{ order.itemDetails }}</div>
+                  </div>
+                  <div class="text-end">
+                    <span class="badge {{ getStatusBadgeClass(order.status) }} mb-2">
+                      {{ order.status | titlecase }}
+                    </span>
+                    <div class="progress" style="width: 80px; height: 6px;">
+                      <div class="progress-bar" [style.width.%]="calculateProgress(order)"></div>
+                    </div>
+                    <small class="text-muted">{{ calculateProgress(order) }}%</small>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="small text-muted">
+                    <i class="fas fa-users me-1"></i>
+                    {{ order.assignedWorkers.length }} workers assigned
+                  </div>
+                  <button 
+                    class="btn btn-sm btn-outline-primary"
+                    (click)="openAssignmentModal(order)"
+                    data-bs-toggle="modal" 
+                    data-bs-target="#assignmentModal"
+                  >
+                    <i class="fas fa-user-plus me-1"></i>
+                    Assign Workers
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Worker Assignment Modal -->
+<div class="modal fade" id="assignmentModal" tabindex="-1" aria-labelledby="assignmentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assignmentModalLabel">
+          <i class="fas fa-user-plus text-primary me-2"></i>
+          Assign Workers
+          <span *ngIf="selectedOrderForAssignment" class="text-muted">
+            - {{ selectedOrderForAssignment.workOrderNumber }}
+          </span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" (click)="closeAssignmentModal()"></button>
+      </div>
+      <div class="modal-body">
+        <form [formGroup]="assignmentForm" (ngSubmit)="submitAssignments()">
+          <div formArrayName="assignments">
+            <div *ngFor="let assignment of assignments.controls; let i = index" [formGroupName]="i" class="assignment-row mb-3 p-3 border rounded">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Stage</label>
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    formControlName="stageType"
+                    readonly
+                    [value]="assignment.get('stageType')?.value | titlecase"
+                  >
+                </div>
+                <div class="col-md-8">
+                  <label class="form-label">Assign Worker</label>
+                  <select 
+                    class="form-select" 
+                    formControlName="workerId"
+                    (change)="onAssignmentWorkerChange(i)"
+                  >
+                    <option value="">Select Worker</option>
+                    <option 
+                      *ngFor="let worker of getWorkersByStage(assignment.get('stageType')?.value)" 
+                      [value]="worker.id"
+                    >
+                      {{ worker.name }} ({{ worker.email }})
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" (click)="closeAssignmentModal()">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-primary"
+          (click)="submitAssignments()"
+          [disabled]="assigning"
+          data-bs-dismiss="modal"
+        >
+          <span *ngIf="assigning" class="spinner-border spinner-border-sm me-2" role="status"></span>
+          <i *ngIf="!assigning" class="fas fa-save me-2"></i>
+          {{ assigning ? 'Assigning...' : 'Save Assignments' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

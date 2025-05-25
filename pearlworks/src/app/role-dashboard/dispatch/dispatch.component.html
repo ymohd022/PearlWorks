@@ -1,0 +1,251 @@
+<div class="dispatch-dashboard">
+  <div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h2 class="mb-1">
+              <i class="fas fa-shipping-fast text-primary me-2"></i>
+              Dispatch Dashboard
+            </h2>
+            <p class="text-muted mb-0">Manage completed work orders ready for dispatch</p>
+          </div>
+          <button class="btn btn-outline-primary" (click)="refreshOrders()" [disabled]="loading">
+            <i class="fas fa-sync-alt me-2" [class.fa-spin]="loading"></i>
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div class="row mb-3" *ngIf="successMessage || errorMessage">
+      <div class="col-12">
+        <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
+          <i class="fas fa-check-circle me-2"></i>
+          {{ successMessage }}
+          <button type="button" class="btn-close" (click)="successMessage = ''" aria-label="Close"></button>
+        </div>
+        <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          {{ errorMessage }}
+          <button type="button" class="btn-close" (click)="errorMessage = ''" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready to Dispatch Orders -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+              <i class="fas fa-box-open text-primary me-2"></i>
+              Ready for Dispatch
+              <span class="badge bg-success ms-2">{{ readyToDispatchOrders.length }}</span>
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            <!-- Loading State -->
+            <div *ngIf="loading" class="text-center py-5">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="text-muted mt-2">Loading orders ready for dispatch...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div *ngIf="!loading && readyToDispatchOrders.length === 0" class="text-center py-5">
+              <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+              <h5 class="text-muted">No Orders Ready for Dispatch</h5>
+              <p class="text-muted">There are no completed orders ready for dispatch at the moment.</p>
+            </div>
+
+            <!-- Work Orders Grid (Mobile-First) -->
+            <div *ngIf="!loading && readyToDispatchOrders.length > 0" class="work-orders-grid">
+              <div *ngFor="let order of readyToDispatchOrders" class="work-order-card">
+                <div class="card-content">
+                  <!-- Header -->
+                  <div class="order-header">
+                    <div class="order-info">
+                      <h6 class="order-number">{{ order.workOrderNumber }}</h6>
+                      <p class="party-name">{{ order.partyName }}</p>
+                    </div>
+                    <div class="status-badge">
+                      <span class="badge {{ getStatusBadgeClass(order.status) }}">
+                        <i class="{{ getStatusIcon(order.status) }} me-1"></i>
+                        {{ order.status | titlecase }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Details -->
+                  <div class="order-details">
+                    <div class="detail-row">
+                      <span class="label">Product Type:</span>
+                      <span class="value">{{ order.productType }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">Final Weight:</span>
+                      <span class="value">{{ order.jamahWeight || order.issueWeight }}g</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">Completion Date:</span>
+                      <span class="value">{{ formatDate(order.assignedDate) }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">Expected Dispatch:</span>
+                      <span class="value">{{ formatDate(order.expectedCompletionDate) }}</span>
+                    </div>
+                    <div class="detail-row" *ngIf="order.notes">
+                      <span class="label">Final Notes:</span>
+                      <span class="value">{{ order.notes }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="order-actions">
+                    <!-- Quick Actions -->
+                    <div class="quick-actions mb-2" *ngIf="!isDispatched(order)">
+  <button 
+    class="btn btn-sm btn-success me-2"
+    (click)="quickDispatch(order)"
+    [disabled]="updating"
+  >
+    <i class="fas fa-shipping-fast me-1"></i>
+    Quick Dispatch
+  </button>
+</div>
+                    
+                    <!-- Detailed Dispatch -->
+                    <button 
+  class="btn btn-sm btn-outline-primary"
+  (click)="openDispatchModal(order)"
+  data-bs-toggle="modal" 
+  data-bs-target="#dispatchModal"
+  [disabled]="updating || isDispatched(order)"
+>
+  <i class="fas fa-edit me-1"></i>
+  {{ isDispatched(order) ? 'View Details' : 'Dispatch with Details' }}
+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dispatch Modal -->
+<div class="modal fade" id="dispatchModal" tabindex="-1" aria-labelledby="dispatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dispatchModalLabel">
+          <i class="fas fa-shipping-fast text-primary me-2"></i>
+          Dispatch Work Order
+          <span *ngIf="selectedOrder" class="text-muted">
+            - {{ selectedOrder.workOrderNumber }}
+          </span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" (click)="closeDispatchModal()"></button>
+      </div>
+      <div class="modal-body">
+        <form [formGroup]="updateForm" (ngSubmit)="onSubmitDispatch()">
+          <!-- Order Summary -->
+          <div *ngIf="selectedOrder" class="order-summary mb-4 p-3 bg-light rounded">
+            <h6 class="text-primary mb-2">Order Summary</h6>
+            <div class="row g-2">
+              <div class="col-6"><strong>Party:</strong> {{ selectedOrder.partyName }}</div>
+              <div class="col-6"><strong>Product:</strong> {{ selectedOrder.productType }}</div>
+              <div class="col-6"><strong>Final Weight:</strong> {{ selectedOrder.jamahWeight || selectedOrder.issueWeight }}g</div>
+              <div class="col-6"><strong>Completed:</strong> {{ formatDate(selectedOrder.assignedDate) }}</div>
+            </div>
+          </div>
+
+          <!-- Dispatch Status -->
+          <div class="mb-3">
+            <label class="form-label">Dispatch Status *</label>
+            <select 
+  class="form-select" 
+  formControlName="status"
+  [class.is-invalid]="updateForm.get('status')?.invalid && updateForm.get('status')?.touched"
+>
+  <option value="">Select Status</option>
+  <option value="completed">Dispatch</option>
+  <option value="on-hold">On Hold</option>
+</select>
+            <div class="invalid-feedback">
+              Please select a dispatch status
+            </div>
+          </div>
+
+          <!-- Dispatch Date -->
+          <div class="mb-3">
+            <label class="form-label">Dispatch Date *</label>
+            <input 
+              type="date" 
+              class="form-control" 
+              formControlName="dispatchDate"
+              [class.is-invalid]="updateForm.get('dispatchDate')?.invalid && updateForm.get('dispatchDate')?.touched"
+            >
+            <div class="invalid-feedback">
+              Please select a dispatch date
+            </div>
+          </div>
+
+          <!-- Courier Service -->
+          <div class="mb-3">
+            <label class="form-label">Delivery Method</label>
+            <select class="form-select" formControlName="courierService">
+              <option value="">Select delivery method...</option>
+              <option value="Hand Delivered">Hand Delivered</option>
+              <option value="DHL Express">DHL Express</option>
+              <option value="FedEx">FedEx</option>
+              <option value="UPS">UPS</option>
+              <option value="BlueDart">BlueDart</option>
+              <option value="India Post">India Post</option>
+              <option value="Local Courier">Local Courier</option>
+              <option value="Customer Pickup">Customer Pickup</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <!-- Dispatch Notes -->
+          <div class="mb-3">
+            <label class="form-label">Dispatch Notes/Remarks</label>
+            <textarea 
+              class="form-control" 
+              formControlName="notes"
+              rows="3"
+              placeholder="Add dispatch notes, tracking information, special instructions, etc..."
+            ></textarea>
+            <div class="form-text">
+              Include tracking numbers, delivery instructions, or any special handling notes
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" (click)="closeDispatchModal()">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-primary"
+          (click)="onSubmitDispatch()"
+          [disabled]="updating || updateForm.invalid"
+          data-bs-dismiss="modal"
+        >
+          <span *ngIf="updating" class="spinner-border spinner-border-sm me-2" role="status"></span>
+          <i *ngIf="!updating" class="fas fa-shipping-fast me-2"></i>
+          {{ updating ? 'Processing...' : 'Confirm Dispatch' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
