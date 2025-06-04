@@ -1,0 +1,43 @@
+ .order-number {
+        color: #666;
+        font-size: 0.9em;
+        margin-left: 8px;
+      }
+      
+      .order-summary {
+        margin-bottom: 20px;
+      }
+      
+      .summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      
+      .update-form {
+        min-width: 500px;
+      }
+      
+      .full-width {
+        width: 100%;
+        margin-bottom: 16px;
+      }
+      
+      .sorting-section {
+        margin: 20px 0;
+      }
+      
+      .sorting-section h4 {
+        margin-bottom: 16px;
+        color: #333;
+      }
+      
+      .sorting-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      
+      .approval-checkbox {
+        margin: 16px 0;
+      }

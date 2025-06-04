@@ -3,6 +3,8 @@ import { Subject, takeUntil, debounceTime, distinctUntilChanged } from "rxjs"
 import  { FormBuilder, FormGroup } from "@angular/forms"
 import  { WorkOrder, ActivityLog, WorkOrderFilters } from "../../work-order.interface"
 import { WorkOrderService } from "../../services/work-order.service"
+import { Router } from '@angular/router';
+import { AuthService } from "../../services/auth.service"
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -24,6 +26,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   constructor(
     private workOrderService: WorkOrderService,
     private fb: FormBuilder,
+    private router: Router,
+    private authService: AuthService
   ) {
     this.filterForm = this.fb.group({
       status: [""],
@@ -168,6 +172,10 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     const completedStages = workOrder.stages.filter((stage) => stage.status === "completed").length
     return Math.round((completedStages / workOrder.stages.length) * 100)
   }
+  logout(): void {
+  this.authService.logout();
+  this.router.navigate(['/login']);
+}
 
   refreshData(): void {
     this.loadWorkOrders()

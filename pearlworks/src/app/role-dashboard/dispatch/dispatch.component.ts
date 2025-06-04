@@ -4,6 +4,7 @@ import { Subject, takeUntil } from "rxjs"
 import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-dispatch',
@@ -27,6 +28,7 @@ export class DispatchComponent implements OnInit, OnDestroy {
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
     private fb: FormBuilder,
+     private router: Router,
   ) {
     this.updateForm = this.fb.group({
       status: ["", Validators.required],
@@ -203,6 +205,10 @@ export class DispatchComponent implements OnInit, OnDestroy {
       this.errorMessage = ""
     }, 5000)
   }
+    logout(): void {
+  this.authService.logout();
+  this.router.navigate(['/login']);
+}
 
   refreshOrders(): void {
     this.loadReadyToDispatchOrders()

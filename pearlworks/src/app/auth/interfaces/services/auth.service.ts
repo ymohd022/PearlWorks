@@ -1,7 +1,9 @@
 import { Injectable } from "@angular/core"
 import  { HttpClient } from "@angular/common/http"
-import { BehaviorSubject, Observable } from "rxjs"
-import { LoginResponse, User, UserRole } from "../auth.interface"
+import { BehaviorSubject,  Observable } from "rxjs"
+import { map } from "rxjs/operators"
+import { ApiService } from "./api.service"
+import  { LoginResponse, User, UserRole } from "../../interfaces/auth.interface"
 
 @Injectable({
   providedIn: "root",
@@ -10,18 +12,10 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(null)
   public currentUser$ = this.currentUserSubject.asObservable()
 
-  // Mock user database
-  private mockUsers = [
-    { id: "1", email: "admin@shop.com", password: "123456", role: "admin" as UserRole, name: "Admin User" },
-    { id: "2", email: "manager@shop.com", password: "123456", role: "manager" as UserRole, name: "Manager User" },
-    { id: "3", email: "framing@shop.com", password: "123456", role: "framing" as UserRole, name: "Framing Specialist" },
-    { id: "4", email: "setting@shop.com", password: "123456", role: "setting" as UserRole, name: "Setting Specialist" },
-    { id: "5", email: "polish@shop.com", password: "123456", role: "polish" as UserRole, name: "Polish Specialist" },
-    { id: "6", email: "repair@shop.com", password: "123456", role: "repair" as UserRole, name: "Repair Specialist" },
-    { id: "7", email: "dispatch@shop.com", password: "123456", role: "dispatch" as UserRole, name: "Dispatch Manager" },
-  ]
-
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private apiService: ApiService,
+  ) {
     // Check if user is already logged in
     const token = this.getToken()
     const userData = this.getUserData()
@@ -31,64 +25,44 @@ export class AuthService {
   }
 
   login(email: string, password: string): Observable<LoginResponse> {
-    // Mock API call - replace with actual HTTP request in production
-    return this.mockLogin(email, password)
-  }
-
-  private mockLogin(email: string, password: string): Observable<LoginResponse> {
-    // Simulate API delay
-    return new Observable((observer) => {
-      setTimeout(() => {
-        const user = this.mockUsers.find((u) => u.email === email && u.password === password)
-
-        if (user) {
-          const token = this.generateMockToken(user)
-          const userData: User = {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            name: user.name,
-          }
-
+    return this.apiService.login({ email, password }).pipe(
+      map((response) => {
+        if (response.success && response.user) {
           // Store token and user data
-          localStorage.setItem("auth_token", token)
-          localStorage.setItem("user_data", JSON.stringify(userData))
+          localStorage.setItem("auth_token", response.token)
+          localStorage.setItem("user_data", JSON.stringify(response.user))
 
-          this.currentUserSubject.next(userData)
+          this.currentUserSubject.next(response.user)
 
-          observer.next({
+          return {
             success: true,
-            token,
-            user: userData,
-          })
+            token: response.token,
+            user: response.user,
+          }
         } else {
-          observer.next({
+          return {
             success: false,
-            message: "Invalid email or password",
-          })
+            message: response.message || "Login failed",
+          }
         }
-        observer.complete()
-      }, 1000) // Simulate network delay
-    })
-  }
-
-  private generateMockToken(user: any): string {
-    // Generate a mock JWT token
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }))
-    const payload = btoa(
-      JSON.stringify({
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
       }),
     )
-    const signature = btoa("mock-signature")
-
-    return `${header}.${payload}.${signature}`
   }
 
   logout(): void {
+    // Call API logout endpoint
+    this.apiService.logout().subscribe({
+      next: () => {
+        this.clearLocalStorage()
+      },
+      error: () => {
+        // Clear local storage even if API call fails
+        this.clearLocalStorage()
+      },
+    })
+  }
+
+  private clearLocalStorage(): void {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("user_data")
     this.currentUserSubject.next(null)

@@ -1,4 +1,6 @@
 export interface AssignedWorkOrder {
+  approved: boolean
+  sortingIssue: string
   id: string
   workOrderNumber: string
   partyName: string
@@ -7,6 +9,7 @@ export interface AssignedWorkOrder {
   jamahWeight?: number
   assignedDate: Date
   status: StageStatus
+  sortingJamah?: number;
   notes?: string
   expectedCompletionDate?: Date
   currentStage: StageType
@@ -19,6 +22,10 @@ export interface StageUpdateRequest {
   notes?: string
   jamahWeight?: number
   completedDate?: Date
+  sortingIssue?: number
+  sortingJamah?: number
+  approved?: boolean
+  workOrderId?: string
 }
 
 export interface StageUpdateResponse {

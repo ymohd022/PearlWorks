@@ -9,6 +9,8 @@ import  {
   AssignedWorker,
 } from "../../work-order.interface"
 import  { WorkOrderService } from "../../services/work-order.service"
+import { Router } from '@angular/router';
+import { AuthService } from "../../services/auth.service"
 
 @Component({
   selector: 'app-manager-dashboard',
@@ -35,6 +37,8 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   constructor(
     private fb: FormBuilder,
     private workOrderService: WorkOrderService,
+    private router: Router,
+    private authService: AuthService
   ) {
     this.createOrderForm = this.fb.group({
       partyName: ["", [Validators.required, Validators.minLength(2)]],
@@ -320,6 +324,11 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       day: "numeric",
     })
   }
+
+  logout(): void {
+  this.authService.logout();
+  this.router.navigate(['/login']);
+}
 
   calculateProgress(workOrder: WorkOrder): number {
     if (workOrder.stages.length === 0) return 0

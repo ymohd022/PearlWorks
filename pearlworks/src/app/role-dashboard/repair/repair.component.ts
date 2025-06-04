@@ -4,6 +4,7 @@ import { Subject, takeUntil } from "rxjs"
 import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-repair',
@@ -26,6 +27,7 @@ export class RepairComponent implements OnInit, OnDestroy {
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
+     private router: Router,
     private fb: FormBuilder,
   ) {
     this.updateForm = this.fb.group({
@@ -210,6 +212,11 @@ export class RepairComponent implements OnInit, OnDestroy {
       this.errorMessage = ""
     }, 5000)
   }
+
+    logout(): void {
+  this.authService.logout();
+  this.router.navigate(['/login']);
+}
 
   refreshOrders(): void {
     this.loadAssignedOrders()

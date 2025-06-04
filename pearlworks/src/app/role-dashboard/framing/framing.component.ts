@@ -1,10 +1,13 @@
 import { Component,  OnInit,  OnDestroy } from "@angular/core"
-import {  FormBuilder,  FormGroup, Validators } from "@angular/forms"
+import  { FormBuilder } from "@angular/forms"
 import { Subject, takeUntil } from "rxjs"
-import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
+import  { MatSnackBar } from "@angular/material/snack-bar"
+import  { MatDialog } from "@angular/material/dialog"
+import { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
-
+import { FramingUpdateComponent } from "./framing-update/framing-update.component"
+import { Router } from '@angular/router';
 @Component({
   selector: 'app-framing',
   standalone: false,
@@ -15,29 +18,25 @@ export class FramingComponent implements OnInit, OnDestroy {
   assignedOrders: AssignedWorkOrder[] = []
   loading = false
   updating = false
-  successMessage = ""
-  errorMessage = ""
-  selectedOrder: AssignedWorkOrder | null = null
-  updateForm: FormGroup
-
+  statistics: any = {}
   private destroy$ = new Subject<void>()
-  private currentUser: any // or your user type
+  private currentUser: any;
+
 
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
     private fb: FormBuilder,
-  ) {
-    this.updateForm = this.fb.group({
-      status: ["", Validators.required],
-      jamahWeight: ["", [Validators.min(0.01)]],
-      notes: [""],
-    })
-    this.currentUser = this.authService.getUserData() // <-- move here
-  }
+    private router: Router,
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog,
+  ) {}
+
+  
 
   ngOnInit(): void {
     this.loadAssignedOrders()
+    this.loadStatistics()
   }
 
   ngOnDestroy(): void {
@@ -57,74 +56,53 @@ export class FramingComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error("Error loading assigned orders:", error)
-          this.errorMessage = "Failed to load assigned work orders"
+          this.snackBar.open("Failed to load assigned work orders", "Close", {
+            duration: 5000,
+            panelClass: ["error-snackbar"],
+          })
           this.loading = false
-          this.clearMessages()
         },
       })
   }
 
-  openUpdateModal(order: AssignedWorkOrder): void {
-    this.selectedOrder = order
-    this.updateForm.patchValue({
-      status: order.status,
-      jamahWeight: order.jamahWeight || "",
-      notes: order.notes || "",
+  loadStatistics(): void {
+    // This would be implemented with a new API endpoint
+    // For now, calculate from current orders
+    this.calculateStatistics()
+  }
+
+  calculateStatistics(): void {
+    const total = this.assignedOrders.length
+    const pending = this.assignedOrders.filter((o) => o.status === "not-started").length
+    const inProgress = this.assignedOrders.filter((o) => o.status === "in-progress").length
+    const completed = this.assignedOrders.filter((o) => o.status === "completed").length
+    const onHold = this.assignedOrders.filter((o) => o.status === "on-hold").length
+
+    this.statistics = {
+      total,
+      pending,
+      inProgress,
+      completed,
+      onHold,
+      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+    }
+  }
+
+  openUpdateDialog(order: AssignedWorkOrder): void {
+    const dialogRef = this.dialog.open(FramingUpdateComponent, {
+      width: "600px",
+      data: { order },
     })
-  }
 
-  closeUpdateModal(): void {
-    this.selectedOrder = null
-    this.updateForm.reset()
-  }
-
-  onSubmitUpdate(): void {
-    if (this.updateForm.invalid || !this.selectedOrder || !this.currentUser) {
-      return
-    }
-
-    this.updating = true
-    this.clearMessages()
-
-    const formValue = this.updateForm.value
-    const updateRequest: StageUpdateRequest = {
-      stage: "framing",
-      status: formValue.status,
-      updatedBy: this.currentUser.name,
-      notes: formValue.notes || undefined,
-      jamahWeight: formValue.jamahWeight ? Number.parseFloat(formValue.jamahWeight) : undefined,
-      completedDate: formValue.status === "completed" ? new Date() : undefined,
-    }
-
-    this.roleDashboardService
-      .updateStageStatus(this.selectedOrder.id, updateRequest)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.successMessage = response.message
-            this.loadAssignedOrders()
-            this.closeUpdateModal()
-          } else {
-            this.errorMessage = response.message
-          }
-          this.updating = false
-          this.clearMessages()
-        },
-        error: (error) => {
-          console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
-          this.updating = false
-          this.clearMessages()
-        },
-      })
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.updateOrderStatus(order, result)
+      }
+    })
   }
 
   quickStatusUpdate(order: AssignedWorkOrder, newStatus: "in-progress" | "completed"): void {
     if (!this.currentUser) return
-
-    this.updating = true
-    this.clearMessages()
 
     const updateRequest: StageUpdateRequest = {
       stage: "framing",
@@ -133,47 +111,61 @@ export class FramingComponent implements OnInit, OnDestroy {
       completedDate: newStatus === "completed" ? new Date() : undefined,
     }
 
+    this.updateOrderStatus(order, updateRequest)
+  }
+
+  private updateOrderStatus(order: AssignedWorkOrder, updateRequest: StageUpdateRequest): void {
+    this.updating = true
+
     this.roleDashboardService
       .updateStageStatus(order.id, updateRequest)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success) {
-            this.successMessage = response.message
+            this.snackBar.open(response.message, "Close", {
+              duration: 3000,
+              panelClass: ["success-snackbar"],
+            })
             this.loadAssignedOrders()
+            this.loadStatistics()
           } else {
-            this.errorMessage = response.message
+            this.snackBar.open(response.message, "Close", {
+              duration: 5000,
+              panelClass: ["error-snackbar"],
+            })
           }
           this.updating = false
-          this.clearMessages()
         },
         error: (error) => {
           console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
+          this.snackBar.open("Failed to update work order. Please try again.", "Close", {
+            duration: 5000,
+            panelClass: ["error-snackbar"],
+          })
           this.updating = false
-          this.clearMessages()
         },
       })
   }
 
-  getStatusBadgeClass(status: string): string {
-    const statusClasses = {
-      "not-started": "bg-light text-dark",
-      "in-progress": "bg-warning text-dark",
-      completed: "bg-success",
-      "on-hold": "bg-danger",
+  getStatusColor(status: string): string {
+    const statusColors = {
+      "not-started": "warn",
+      "in-progress": "accent",
+      completed: "primary",
+      "on-hold": "warn",
     }
-    return statusClasses[status as keyof typeof statusClasses] || "bg-secondary"
+    return statusColors[status as keyof typeof statusColors] || "basic"
   }
 
   getStatusIcon(status: string): string {
     const statusIcons = {
-      "not-started": "fas fa-clock",
-      "in-progress": "fas fa-spinner",
-      completed: "fas fa-check-circle",
-      "on-hold": "fas fa-pause-circle",
+      "not-started": "schedule",
+      "in-progress": "autorenew",
+      completed: "check_circle",
+      "on-hold": "pause_circle",
     }
-    return statusIcons[status as keyof typeof statusIcons] || "fas fa-question-circle"
+    return statusIcons[status as keyof typeof statusIcons] || "help"
   }
 
   formatDate(date: Date | undefined): string {
@@ -197,15 +189,13 @@ export class FramingComponent implements OnInit, OnDestroy {
     return this.calculateDaysRemaining(expectedDate) < 0
   }
 
-  private clearMessages(): void {
-    setTimeout(() => {
-      this.successMessage = ""
-      this.errorMessage = ""
-    }, 5000)
-  }
+    logout(): void {
+  this.authService.logout();
+  this.router.navigate(['/login']);
+}
 
   refreshOrders(): void {
     this.loadAssignedOrders()
+    this.loadStatistics()
   }
 }
-
