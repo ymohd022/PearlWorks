@@ -1,11 +1,14 @@
 import { Component,  OnInit,  OnDestroy } from "@angular/core"
-import {  FormBuilder,  FormGroup, Validators } from "@angular/forms"
+import {  FormBuilder,} from "@angular/forms"
 import { Subject, takeUntil } from "rxjs"
 import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { Router } from '@angular/router';
-
+import  { MatDialog } from "@angular/material/dialog"
+import  { MatSnackBar } from "@angular/material/snack-bar"
+import { SettingWorkOrder, SettingStatistics, SettingUpdateRequest } from "../../auth/interfaces/setting.interface"
+import { SettingUpdateDialogComponent } from "./setting-update-dialog/setting-update-dialog.component"
 @Component({
   selector: 'app-setting',
   standalone: false,
@@ -13,34 +16,29 @@ import { Router } from '@angular/router';
   styleUrl: './setting.component.css'
 })
 export class SettingComponent implements OnInit, OnDestroy {
-  assignedOrders: AssignedWorkOrder[] = []
+  assignedOrders: SettingWorkOrder[] = []
+  statistics: SettingStatistics | null = null
   loading = false
   updating = false
-  successMessage = ""
-  errorMessage = ""
-  selectedOrder: AssignedWorkOrder | null = null
-  updateForm: FormGroup
-  
+  selectedOrder: SettingWorkOrder | null = null
 
- private destroy$ = new Subject<void>()
+  private destroy$ = new Subject<void>()
   private currentUser: any
 
-   constructor(
+  constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
-     private router: Router,
+    private router: Router,
     private fb: FormBuilder,
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar,
   ) {
-    this.updateForm = this.fb.group({
-      status: ["", Validators.required],
-      jamahWeight: ["", [Validators.min(0.01)]],
-      notes: [""],
-    })
-    this.currentUser = this.authService.getUserData() // <-- move here
+    this.currentUser = this.authService.getUserData()
   }
 
   ngOnInit(): void {
     this.loadAssignedOrders()
+    this.loadStatistics()
   }
 
   ngOnDestroy(): void {
@@ -48,88 +46,64 @@ export class SettingComponent implements OnInit, OnDestroy {
     this.destroy$.complete()
   }
 
-  loadAssignedOrders(): void {
-    this.loading = true
+loadAssignedOrders(): void {
+  this.loading = true;
+  this.roleDashboardService
+    .getSettingWorkOrders() // Use the new specific method
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (orders) => {
+        this.assignedOrders = orders;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error("Error loading assigned orders:", error);
+        this.showSnackBar("Failed to load assigned work orders", "error");
+        this.loading = false;
+      },
+    });
+}
+
+  loadStatistics(): void {
     this.roleDashboardService
-      .getAssignedWorkOrders("setting")
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (orders) => {
-          this.assignedOrders = orders
-          this.loading = false
-        },
-        error: (error) => {
-          console.error("Error loading assigned orders:", error)
-          this.errorMessage = "Failed to load assigned work orders"
-          this.loading = false
-          this.clearMessages()
-        },
-      })
-  }
-
-  openUpdateModal(order: AssignedWorkOrder): void {
-    this.selectedOrder = order
-    this.updateForm.patchValue({
-      status: order.status,
-      jamahWeight: order.jamahWeight || "",
-      notes: order.notes || "",
-    })
-  }
-
-  closeUpdateModal(): void {
-    this.selectedOrder = null
-    this.updateForm.reset()
-  }
-
-  onSubmitUpdate(): void {
-    if (this.updateForm.invalid || !this.selectedOrder || !this.currentUser) {
-      return
-    }
-
-    this.updating = true
-    this.clearMessages()
-
-    const formValue = this.updateForm.value
-    const updateRequest: StageUpdateRequest = {
-      stage: "setting",
-      status: formValue.status,
-      updatedBy: this.currentUser.name,
-      notes: formValue.notes || undefined,
-      jamahWeight: formValue.jamahWeight ? Number.parseFloat(formValue.jamahWeight) : undefined,
-      completedDate: formValue.status === "completed" ? new Date() : undefined,
-    }
-
-    this.roleDashboardService
-      .updateStageStatus(this.selectedOrder.id, updateRequest)
+      .getSettingStatistics()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success) {
-            this.successMessage = response.message
-            this.loadAssignedOrders()
-            this.closeUpdateModal()
-          } else {
-            this.errorMessage = response.message
-          }
-          this.updating = false
-          this.clearMessages()
+          this.statistics = response.data
         },
         error: (error) => {
-          console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
-          this.updating = false
-          this.clearMessages()
+          console.error("Error loading statistics:", error)
         },
       })
   }
 
-  quickStatusUpdate(order: AssignedWorkOrder, newStatus: "in-progress" | "completed"): void {
+  openUpdateDialog(order: SettingWorkOrder): void {
+    const dialogRef = this.dialog.open(SettingUpdateDialogComponent, {
+      width: "90vw",
+      maxWidth: "1200px",
+      height: "90vh",
+      data: {
+        order: order,
+        currentUser: this.currentUser,
+      },
+    })
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result && result.updated) {
+        this.loadAssignedOrders()
+        this.loadStatistics()
+        this.showSnackBar("Work order updated successfully", "success")
+      }
+    })
+  }
+
+  quickStatusUpdate(order: SettingWorkOrder, newStatus: "in-progress" | "completed"): void {
     if (!this.currentUser) return
 
     this.updating = true
-    this.clearMessages()
 
-    const updateRequest: StageUpdateRequest = {
+    const updateRequest: SettingUpdateRequest = {
       stage: "setting",
       status: newStatus,
       updatedBy: this.currentUser.name,
@@ -142,41 +116,40 @@ export class SettingComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           if (response.success) {
-            this.successMessage = response.message
+            this.showSnackBar(response.message, "success")
             this.loadAssignedOrders()
+            this.loadStatistics()
           } else {
-            this.errorMessage = response.message
+            this.showSnackBar(response.message, "error")
           }
           this.updating = false
-          this.clearMessages()
         },
         error: (error) => {
           console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
+          this.showSnackBar("Failed to update work order. Please try again.", "error")
           this.updating = false
-          this.clearMessages()
         },
       })
   }
 
-  getStatusBadgeClass(status: string): string {
-    const statusClasses = {
-      "not-started": "bg-light text-dark",
-      "in-progress": "bg-warning text-dark",
-      completed: "bg-success",
-      "on-hold": "bg-danger",
+  getStatusColor(status: string): string {
+    const statusColors = {
+      "not-started": "accent",
+      "in-progress": "warn",
+      completed: "primary",
+      "on-hold": "warn",
     }
-    return statusClasses[status as keyof typeof statusClasses] || "bg-secondary"
+    return statusColors[status as keyof typeof statusColors] || "accent"
   }
 
   getStatusIcon(status: string): string {
     const statusIcons = {
-      "not-started": "fas fa-clock",
-      "in-progress": "fas fa-spinner",
-      completed: "fas fa-check-circle",
-      "on-hold": "fas fa-pause-circle",
+      "not-started": "schedule",
+      "in-progress": "autorenew",
+      completed: "check_circle",
+      "on-hold": "pause_circle_filled",
     }
-    return statusIcons[status as keyof typeof statusIcons] || "fas fa-question-circle"
+    return statusIcons[status as keyof typeof statusIcons] || "help"
   }
 
   formatDate(date: Date | undefined): string {
@@ -200,20 +173,20 @@ export class SettingComponent implements OnInit, OnDestroy {
     return this.calculateDaysRemaining(expectedDate) < 0
   }
 
-  private clearMessages(): void {
-    setTimeout(() => {
-      this.successMessage = ""
-      this.errorMessage = ""
-    }, 5000)
+  private showSnackBar(message: string, type: "success" | "error"): void {
+    this.snackBar.open(message, "Close", {
+      duration: 5000,
+      panelClass: type === "success" ? "success-snackbar" : "error-snackbar",
+    })
   }
 
-    logout(): void {
-  this.authService.logout();
-  this.router.navigate(['/login']);
-}
+  logout(): void {
+    this.authService.logout()
+    this.router.navigate(["/login"])
+  }
 
   refreshOrders(): void {
     this.loadAssignedOrders()
+    this.loadStatistics()
   }
 }
-

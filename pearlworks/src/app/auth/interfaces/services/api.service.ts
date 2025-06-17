@@ -24,13 +24,8 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/auth/login`, credentials)
   }
 
-  // Add logout method
   logout(): Observable<any> {
-    return this.http.post(
-      `${this.apiUrl}/auth/logout`, 
-      {},
-      { headers: this.getHeaders() }
-    )
+    return this.http.post(`${this.apiUrl}/auth/logout`, {}, { headers: this.getHeaders() })
   }
 
   // Work Orders endpoints
@@ -57,32 +52,45 @@ export class ApiService {
     )
   }
 
-  // Add activity logs method
   getActivityLogs(): Observable<any> {
     return this.http.get(`${this.apiUrl}/work-orders/activity-logs`, {
       headers: this.getHeaders(),
     })
   }
 
-  // Framing endpoints
-  getAssignedOrders(stage: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/dashboard/assigned-orders/${stage}`, {
+  // Role Dashboard endpoints
+getAssignedOrders(stage: string): Observable<any> {
+  return this.http.get(`${this.apiUrl}/dashboard/assigned-orders/${stage}`, {
+    headers: this.getHeaders(),
+  });
+}
+
+ updateStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
+  return this.http.put(
+    `${this.apiUrl}/dashboard/update-stage/${workOrderId}`, 
+    updateRequest,
+    {
+      headers: this.getHeaders(),
+    }
+  )
+}
+
+  // Statistics endpoints
+  getFramingStatistics(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/framing/statistics`, {
       headers: this.getHeaders(),
     })
   }
 
-  updateStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
-    return this.http.put(
-      `${this.apiUrl}/dashboard/update-stage/${workOrderId}`, 
-      updateRequest,
-      {
-        headers: this.getHeaders(),
-      }
-    )
+  getSettingStatistics(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/setting/statistics`, {
+      headers: this.getHeaders(),
+    })
   }
 
-  getFramingStatistics(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/framing/statistics`, {
+  // Stones endpoints
+  getStones(workOrderId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/setting/stones/${workOrderId}`, {
       headers: this.getHeaders(),
     })
   }
@@ -94,7 +102,6 @@ export class ApiService {
     })
   }
 
-  // Add workers by role method
   getWorkersByRole(role: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/users/workers/by-role/${role}`, {
       headers: this.getHeaders(),

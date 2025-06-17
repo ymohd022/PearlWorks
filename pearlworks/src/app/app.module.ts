@@ -20,6 +20,10 @@ import { MatCheckboxModule } from "@angular/material/checkbox"
 import { MatSnackBarModule } from "@angular/material/snack-bar"
 import { MatTooltipModule } from "@angular/material/tooltip"
 import { MatChipListbox } from '@angular/material/chips';
+import { MatTableModule } from "@angular/material/table"
+import { MatTabsModule } from "@angular/material/tabs"
+import { MatExpansionModule } from "@angular/material/expansion"
+import { MatSlideToggleModule } from "@angular/material/slide-toggle"
 
 
 import { AppRoutingModule } from './app-routing.module';
@@ -34,6 +38,7 @@ import { PolishComponent } from './role-dashboard/polish/polish.component';
 import { RepairComponent } from './role-dashboard/repair/repair.component';
 import { DispatchComponent } from './role-dashboard/dispatch/dispatch.component';
 import { FramingUpdateComponent } from './role-dashboard/framing/framing-update/framing-update.component';
+import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-update-dialog/setting-update-dialog.component';
 
 
 @NgModule({
@@ -49,6 +54,7 @@ import { FramingUpdateComponent } from './role-dashboard/framing/framing-update/
     RepairComponent,
     DispatchComponent,
     FramingUpdateComponent,
+    SettingUpdateDialogComponent,
   ],
   imports: [
     BrowserModule,
@@ -70,6 +76,10 @@ import { FramingUpdateComponent } from './role-dashboard/framing/framing-update/
     MatSnackBarModule,
     MatTooltipModule,
     MatChipListbox,
+    MatTableModule,
+    MatTabsModule,
+    MatExpansionModule,
+    MatSlideToggleModule
 
     
   ],

@@ -1,0 +1,289 @@
+.dialog-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.dialog-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.dialog-icon {
+  color: #2196f3;
+}
+
+.close-button {
+  margin-left: auto;
+}
+
+.dialog-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* Summary Card */
+.summary-card {
+  margin: 16px 24px;
+  background-color: #f8f9fa;
+}
+
+.summary-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  color: #2196f3;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.87);
+  font-weight: 500;
+}
+
+/* Form Sections */
+.form-section {
+  margin: 16px 24px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  color: #2196f3;
+}
+
+.section-actions {
+  margin-left: auto;
+}
+
+.update-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.half-width {
+  flex: 1;
+}
+
+.approval-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.approval-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.approval-icon {
+  color: #4caf50;
+}
+
+/* Stones Table */
+.stones-table {
+  margin-top: 16px;
+}
+
+.stones-data-table {
+  width: 100%;
+  background-color: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stones-data-table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.stones-data-table td {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* Returned Stones Section */
+.returned-stones-section {
+  margin-top: 16px;
+}
+
+.stone-form-group {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.stone-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stone-form-title {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.stone-form-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.stone-field {
+  width: 100%;
+}
+
+.no-stones-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}
+
+/* Dialog Actions */
+.dialog-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  gap: 8px;
+}
+
+.button-spinner {
+  margin-right: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .dialog-container {
+    max-height: 95vh;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .half-width {
+    width: 100%;
+  }
+
+  .stone-form-fields {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dialog-header,
+  .dialog-actions {
+    padding: 12px 16px;
+  }
+
+  .form-section {
+    margin: 12px 16px;
+  }
+
+  .summary-card {
+    margin: 12px 16px;
+  }
+}
+
+/* Material Design Enhancements */
+.mat-mdc-form-field {
+  margin-bottom: 8px;
+}
+
+.mat-mdc-card {
+  border-radius: 12px;
+}
+
+.mat-mdc-card-header {
+  padding-bottom: 8px;
+}
+
+.mat-mdc-button {
+  border-radius: 8px;
+}
+
+.mat-mdc-icon-button {
+  border-radius: 50%;
+}
+
+/* Custom Scrollbar */
+.dialog-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dialog-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.dialog-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.dialog-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

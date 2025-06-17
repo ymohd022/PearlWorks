@@ -1,0 +1,253 @@
+<div class="dialog-container">
+  <div class="dialog-header">
+    <h2 mat-dialog-title>
+      <mat-icon class="dialog-icon">edit</mat-icon>
+      Update Setting Work Order
+    </h2>
+    <button mat-icon-button mat-dialog-close class="close-button">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-dialog-content class="dialog-content">
+    <!-- Work Order Summary -->
+    <mat-card class="summary-card">
+      <mat-card-header>
+        <mat-card-title class="summary-title">
+          <mat-icon>info</mat-icon>
+          Work Order Summary
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">Work Order:</span>
+            <span class="summary-value">{{ order.workOrderNumber }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Party:</span>
+            <span class="summary-value">{{ order.partyName }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Product:</span>
+            <span class="summary-value">{{ order.productType }}</span>
+          </div>
+          <div class="summary-item" *ngIf="order.modelNumber">
+            <span class="summary-label">Model:</span>
+            <span class="summary-value">{{ order.modelNumber }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Issue Weight:</span>
+            <span class="summary-value">{{ order.issueWeight }}g</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Assigned:</span>
+            <span class="summary-value">{{ formatDate(order.assignedDate) }}</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Update Form -->
+    <form [formGroup]="updateForm" (ngSubmit)="onSubmit()" class="update-form">
+      
+      <!-- Basic Information Section -->
+      <mat-card class="form-section">
+        <mat-card-header>
+          <mat-card-title class="section-title">
+            <mat-icon>settings</mat-icon>
+            Setting Details
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="status" required>
+                <mat-option value="not-started">Not Started</mat-option>
+                <mat-option value="in-progress">In Progress</mat-option>
+                <mat-option value="completed">Completed</mat-option>
+                <mat-option value="on-hold">On Hold</mat-option>
+              </mat-select>
+              <mat-error *ngIf="updateForm.get('status')?.hasError('required')">
+                Status is required
+              </mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="half-width">
+              <mat-label>Sorting Issue</mat-label>
+              <input matInput type="number" formControlName="sortingIssue" min="0">
+              <mat-hint>Number of pieces issued for sorting</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="half-width">
+              <mat-label>Sorting Jamah</mat-label>
+              <input matInput type="number" formControlName="sortingJamah" min="0">
+              <mat-hint>Number of pieces returned after sorting</mat-hint>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row" *ngIf="updateForm.get('status')?.value === 'completed'">
+            <mat-form-field appearance="outline" class="half-width">
+              <mat-label>Jamah Weight (grams)</mat-label>
+              <input matInput type="number" formControlName="jamahWeight" step="0.01" min="0.01">
+              <mat-hint>Final weight after setting process</mat-hint>
+              <mat-error *ngIf="updateForm.get('jamahWeight')?.hasError('min')">
+                Weight must be greater than 0
+              </mat-error>
+            </mat-form-field>
+
+            <div class="approval-section">
+              <mat-checkbox formControlName="approved" color="primary">
+                <span class="approval-text">
+                  <mat-icon class="approval-icon">verified</mat-icon>
+                  Mark as Approved
+                </span>
+              </mat-checkbox>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Notes/Remarks</mat-label>
+              <textarea matInput formControlName="notes" rows="3" 
+                        placeholder="Add any notes or remarks about the setting process..."></textarea>
+            </mat-form-field>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Received Stones Section -->
+      <mat-card class="form-section" *ngIf="order.stones && order.stones.length > 0">
+        <mat-card-header>
+          <mat-card-title class="section-title">
+            <mat-icon>diamond</mat-icon>
+            Received Stones
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="stones-table">
+            <table mat-table [dataSource]="order.stones" class="stones-data-table">
+              <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Type</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.type }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="pieces">
+                <th mat-header-cell *matHeaderCellDef>Pieces</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.pieces }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightGrams">
+                <th mat-header-cell *matHeaderCellDef>Weight (g)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightGrams }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightCarats">
+                <th mat-header-cell *matHeaderCellDef>Weight (ct)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightCarats }}</td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="['type', 'pieces', 'weightGrams', 'weightCarats']"></tr>
+              <tr mat-row *matRowDef="let row; columns: ['type', 'pieces', 'weightGrams', 'weightCarats'];"></tr>
+            </table>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Returned Stones Section -->
+      <mat-card class="form-section">
+        <mat-card-header>
+          <mat-card-title class="section-title">
+            <mat-icon>keyboard_return</mat-icon>
+            Returned Stones
+          </mat-card-title>
+          <div class="section-actions">
+            <button mat-icon-button type="button" (click)="addReturnedStone()" 
+                    matTooltip="Add Stone" color="primary">
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+        </mat-card-header>
+        <mat-card-content>
+          <div formArrayName="returnedStones" class="returned-stones-section">
+            <div *ngFor="let stoneGroup of returnedStonesArray.controls; let i = index" 
+                 [formGroupName]="i" class="stone-form-group">
+              
+              <div class="stone-form-header">
+                <span class="stone-form-title">Stone {{ i + 1 }}</span>
+                <button mat-icon-button type="button" (click)="removeReturnedStone(i)" 
+                        *ngIf="returnedStonesArray.length > 1"
+                        matTooltip="Remove Stone" color="warn">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+
+              <div class="stone-form-fields">
+                <mat-form-field appearance="outline" class="stone-field">
+                  <mat-label>Stone Type</mat-label>
+                  <input matInput formControlName="type" placeholder="e.g., Ruby, Diamond">
+                  <mat-error *ngIf="stoneGroup.get('type')?.hasError('required')">
+                    Stone type is required
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="stone-field">
+                  <mat-label>Pieces</mat-label>
+                  <input matInput type="number" formControlName="pieces" min="1">
+                  <mat-error *ngIf="stoneGroup.get('pieces')?.hasError('required')">
+                    Pieces is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('pieces')?.hasError('min')">
+                    Pieces must be at least 1
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="stone-field">
+                  <mat-label>Weight (grams)</mat-label>
+                  <input matInput type="number" formControlName="weightGrams" step="0.01" min="0.01">
+                  <mat-error *ngIf="stoneGroup.get('weightGrams')?.hasError('required')">
+                    Weight in grams is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('weightGrams')?.hasError('min')">
+                    Weight must be greater than 0
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="stone-field">
+                  <mat-label>Weight (carats)</mat-label>
+                  <input matInput type="number" formControlName="weightCarats" step="0.01" min="0.01">
+                  <mat-error *ngIf="stoneGroup.get('weightCarats')?.hasError('required')">
+                    Weight in carats is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('weightCarats')?.hasError('min')">
+                    Weight must be greater than 0
+                  </mat-error>
+                </mat-form-field>
+              </div>
+            </div>
+
+            <div *ngIf="returnedStonesArray.length === 0" class="no-stones-message">
+              <mat-icon>info</mat-icon>
+              <span>No stones to return. Click the + button to add stones.</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </form>
+  </mat-dialog-content>
+
+  <mat-dialog-actions class="dialog-actions">
+    <button mat-button type="button" (click)="onCancel()" [disabled]="updating">
+      Cancel
+    </button>
+    <button mat-raised-button color="primary" type="submit" 
+            (click)="onSubmit()" [disabled]="updating || updateForm.invalid">
+      <mat-spinner diameter="20" *ngIf="updating" class="button-spinner"></mat-spinner>
+      <mat-icon *ngIf="!updating">save</mat-icon>
+      {{ updating ? 'Updating...' : 'Update Order' }}
+    </button>
+  </mat-dialog-actions>
+</div>

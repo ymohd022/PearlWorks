@@ -19,20 +19,20 @@ export class FramingComponent implements OnInit, OnDestroy {
   loading = false
   updating = false
   statistics: any = {}
-  private destroy$ = new Subject<void>()
+   private destroy$ = new Subject<void>()
   private currentUser: any;
 
+  // private destroy$ = new Subject<void>()
+  // private currentUser = this.authService.getUserData()
 
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
     private fb: FormBuilder,
-    private router: Router,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
+    private router: Router
   ) {}
-
-  
 
   ngOnInit(): void {
     this.loadAssignedOrders()
@@ -53,6 +53,7 @@ export class FramingComponent implements OnInit, OnDestroy {
         next: (orders) => {
           this.assignedOrders = orders
           this.loading = false
+          this.calculateStatistics()
         },
         error: (error) => {
           console.error("Error loading assigned orders:", error)
@@ -66,8 +67,6 @@ export class FramingComponent implements OnInit, OnDestroy {
   }
 
   loadStatistics(): void {
-    // This would be implemented with a new API endpoint
-    // For now, calculate from current orders
     this.calculateStatistics()
   }
 
@@ -128,7 +127,6 @@ export class FramingComponent implements OnInit, OnDestroy {
               panelClass: ["success-snackbar"],
             })
             this.loadAssignedOrders()
-            this.loadStatistics()
           } else {
             this.snackBar.open(response.message, "Close", {
               duration: 5000,
@@ -189,13 +187,12 @@ export class FramingComponent implements OnInit, OnDestroy {
     return this.calculateDaysRemaining(expectedDate) < 0
   }
 
-    logout(): void {
+      logout(): void {
   this.authService.logout();
   this.router.navigate(['/login']);
 }
 
   refreshOrders(): void {
     this.loadAssignedOrders()
-    this.loadStatistics()
   }
 }
