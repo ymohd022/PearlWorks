@@ -27,7 +27,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private workOrderService: WorkOrderService,
     private fb: FormBuilder,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
   ) {
     this.filterForm = this.fb.group({
       status: [""],
@@ -59,17 +59,21 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   loadWorkOrders(): void {
     this.loading = true
+    // Use admin-specific method to get detailed work orders
     this.workOrderService
-      .getWorkOrders()
+      .getAdminWorkOrders()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (orders) => {
-          this.workOrders = orders
-          this.filteredWorkOrders = orders
+          console.log("Loaded work orders:", orders) // Debug log
+          this.workOrders = orders || []
+          this.filteredWorkOrders = orders || []
           this.loading = false
         },
         error: (error) => {
           console.error("Error loading work orders:", error)
+          this.workOrders = []
+          this.filteredWorkOrders = []
           this.loading = false
         },
       })
@@ -77,16 +81,19 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   loadActivityLogs(): void {
     this.activityLoading = true
+    // Use admin-specific method to get detailed activity logs
     this.workOrderService
-      .getActivityLogs()
+      .getAdminActivityLogs(10)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (logs) => {
-          this.activityLogs = logs.slice(0, 10) // Show only recent 10 logs
+          console.log("Loaded activity logs:", logs) // Debug log
+          this.activityLogs = logs || []
           this.activityLoading = false
         },
         error: (error) => {
           console.error("Error loading activity logs:", error)
+          this.activityLogs = []
           this.activityLoading = false
         },
       })
@@ -104,15 +111,16 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
     this.loading = true
     this.workOrderService
-      .getWorkOrders(filters)
+      .getAdminWorkOrders(filters)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (orders) => {
-          this.filteredWorkOrders = orders
+          this.filteredWorkOrders = orders || []
           this.loading = false
         },
         error: (error) => {
           console.error("Error filtering work orders:", error)
+          this.filteredWorkOrders = []
           this.loading = false
         },
       })
@@ -148,7 +156,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     return statusClasses[status as keyof typeof statusClasses] || "bg-secondary"
   }
 
-  formatDate(date: Date | undefined): string {
+  formatDate(date: Date | string | undefined): string {
     if (!date) return "N/A"
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -157,7 +165,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     })
   }
 
-  formatDateTime(date: Date): string {
+  formatDateTime(date: Date | string): string {
     return new Date(date).toLocaleString("en-US", {
       year: "numeric",
       month: "short",
@@ -168,18 +176,18 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   calculateProgress(workOrder: WorkOrder): number {
-    if (workOrder.stages.length === 0) return 0
+    if (!workOrder.stages || workOrder.stages.length === 0) return 0
     const completedStages = workOrder.stages.filter((stage) => stage.status === "completed").length
     return Math.round((completedStages / workOrder.stages.length) * 100)
   }
+
   logout(): void {
-  this.authService.logout();
-  this.router.navigate(['/login']);
-}
+    this.authService.logout()
+    this.router.navigate(["/login"])
+  }
 
   refreshData(): void {
     this.loadWorkOrders()
     this.loadActivityLogs()
   }
 }
-

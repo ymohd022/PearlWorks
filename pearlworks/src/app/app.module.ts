@@ -4,13 +4,12 @@ import { BrowserAnimationsModule } from "@angular/platform-browser/animations"
 import { provideHttpClient } from '@angular/common/http';
 import { ReactiveFormsModule } from '@angular/forms';
 import {  MAT_DIALOG_DATA } from "@angular/material/dialog";
-
+import { MatChipsModule } from '@angular/material/chips';
 import { MatToolbarModule } from "@angular/material/toolbar"
 import { MatCardModule } from "@angular/material/card"
 import { MatButtonModule } from "@angular/material/button"
 import { MatIconModule } from "@angular/material/icon"
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner"
-import { MatChipsModule } from "@angular/material/chips"
 import { MatListModule } from "@angular/material/list"
 import { MatDialogModule } from "@angular/material/dialog"
 import { MatFormFieldModule } from "@angular/material/form-field"
@@ -19,11 +18,18 @@ import { MatSelectModule } from "@angular/material/select"
 import { MatCheckboxModule } from "@angular/material/checkbox"
 import { MatSnackBarModule } from "@angular/material/snack-bar"
 import { MatTooltipModule } from "@angular/material/tooltip"
-import { MatChipListbox } from '@angular/material/chips';
 import { MatTableModule } from "@angular/material/table"
 import { MatTabsModule } from "@angular/material/tabs"
 import { MatExpansionModule } from "@angular/material/expansion"
 import { MatSlideToggleModule } from "@angular/material/slide-toggle"
+import { FormsModule } from "@angular/forms"
+import { MatPaginatorModule } from "@angular/material/paginator"
+import { MatSortModule } from "@angular/material/sort"
+import { MatDatepickerModule } from "@angular/material/datepicker"
+import { MatNativeDateModule } from "@angular/material/core"
+import { MatAutocompleteModule } from "@angular/material/autocomplete"
+import { MatMenuModule } from '@angular/material/menu';
+import { CommonModule } from '@angular/common';
 
 
 import { AppRoutingModule } from './app-routing.module';
@@ -39,6 +45,8 @@ import { RepairComponent } from './role-dashboard/repair/repair.component';
 import { DispatchComponent } from './role-dashboard/dispatch/dispatch.component';
 import { FramingUpdateComponent } from './role-dashboard/framing/framing-update/framing-update.component';
 import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-update-dialog/setting-update-dialog.component';
+import { PolishUpdateDialogComponent } from './role-dashboard/polish/polish-update-dialog/polish-update-dialog.component';
+import { StonesDialogComponent } from './role-dashboard/polish/stones-dialog/stones-dialog.component';
 
 
 @NgModule({
@@ -55,6 +63,8 @@ import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-u
     DispatchComponent,
     FramingUpdateComponent,
     SettingUpdateDialogComponent,
+    PolishUpdateDialogComponent,
+    StonesDialogComponent,
   ],
   imports: [
     BrowserModule,
@@ -75,13 +85,18 @@ import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-u
     MatCheckboxModule,
     MatSnackBarModule,
     MatTooltipModule,
-    MatChipListbox,
     MatTableModule,
     MatTabsModule,
     MatExpansionModule,
-    MatSlideToggleModule
-
-    
+    MatSlideToggleModule,
+    FormsModule,
+    MatPaginatorModule,
+    MatSortModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatAutocompleteModule,
+    MatMenuModule,
+    CommonModule
   ],
   providers: [provideHttpClient()],
   bootstrap: [AppComponent]

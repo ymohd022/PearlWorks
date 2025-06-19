@@ -5,6 +5,11 @@ import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/ro
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
 import { Router } from '@angular/router';
+import  { MatDialog } from "@angular/material/dialog"
+import { PolishUpdateDialogComponent } from "./polish-update-dialog/polish-update-dialog.component"
+import { StonesDialogComponent } from "./stones-dialog/stones-dialog.component"
+import { PolishStatistics } from "../../auth/interfaces/polish.interface"
+import { MatSnackBar } from "@angular/material/snack-bar"
 
 @Component({
   selector: 'app-polish',
@@ -14,32 +19,40 @@ import { Router } from '@angular/router';
 })
 export class PolishComponent implements OnInit, OnDestroy {
   assignedOrders: AssignedWorkOrder[] = []
+  statistics: PolishStatistics | null = null
   loading = false
   updating = false
-  successMessage = ""
-  errorMessage = ""
-  selectedOrder: AssignedWorkOrder | null = null
-  updateForm: FormGroup
 
   private destroy$ = new Subject<void>()
   private currentUser: any
 
+  // Display columns for the table
+  displayedColumns: string[] = [
+    "workOrderNumber",
+    "partyName",
+    "productType",
+    "issueWeight",
+    "jamahWeight",
+    "status",
+    "assignedDate",
+    "actions",
+  ]
+
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
-     private router: Router,
-    private fb: FormBuilder,
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar,
   ) {
-    this.updateForm = this.fb.group({
-      status: ["", Validators.required],
-      jamahWeight: ["", [Validators.min(0.01)]],
-      notes: [""],
-    })
-     this.currentUser = this.authService.getUserData()
+    this.currentUser = this.authService.getUserData()
   }
 
   ngOnInit(): void {
-    this.loadAssignedOrders()
+    // Initialize currentUser if not already set
+    if (!this.currentUser) {
+      this.currentUser = this.authService.getUserData()
+    }
+    this.loadData()
   }
 
   ngOnDestroy(): void {
@@ -47,93 +60,115 @@ export class PolishComponent implements OnInit, OnDestroy {
     this.destroy$.complete()
   }
 
-  loadAssignedOrders(): void {
+  loadData(): void {
     this.loading = true
-    this.roleDashboardService
-      .getAssignedWorkOrders("polish")
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (orders) => {
-          this.assignedOrders = orders
-          this.loading = false
-        },
-        error: (error) => {
-          console.error("Error loading assigned orders:", error)
-          this.errorMessage = "Failed to load assigned work orders"
-          this.loading = false
-          this.clearMessages()
-        },
-      })
-  }
 
-  openUpdateModal(order: AssignedWorkOrder): void {
-    this.selectedOrder = order
-    this.updateForm.patchValue({
-      status: order.status,
-      jamahWeight: order.jamahWeight || "",
-      notes: order.notes || "",
+    // Load assigned orders and statistics
+    Promise.all([this.loadAssignedOrders(), this.loadStatistics()]).finally(() => {
+      this.loading = false
     })
   }
 
-  closeUpdateModal(): void {
-    this.selectedOrder = null
-    this.updateForm.reset()
+  loadAssignedOrders(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log("Loading assigned orders for polish...") // Add logging
+
+      this.roleDashboardService
+        .getAssignedWorkOrders("polish")
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (orders) => {
+            console.log("Received orders:", orders) // Add logging
+            this.assignedOrders = orders
+            resolve()
+          },
+          error: (error) => {
+            console.error("Error loading assigned orders:", error)
+            console.error("Error details:", error.error) // Add more detailed logging
+            this.showSnackBar(
+              "Failed to load assigned work orders: " + (error.error?.message || error.message),
+              "error",
+            )
+            reject(error)
+          },
+        })
+    })
   }
 
-  onSubmitUpdate(): void {
-    if (this.updateForm.invalid || !this.selectedOrder || !this.currentUser) {
-      return
-    }
+  loadStatistics(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log("Loading polish statistics...") // Add logging
 
-    this.updating = true
-    this.clearMessages()
+      this.roleDashboardService
+        .getPolishStatistics()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            console.log("Received statistics:", response) // Add logging
+            this.statistics = response.data
+            resolve()
+          },
+          error: (error) => {
+            console.error("Error loading statistics:", error)
+            console.error("Error details:", error.error) // Add more detailed logging
+            // Don't show error for statistics as it's not critical
+            this.statistics = {
+              totalOrders: 0,
+              pendingOrders: 0,
+              inProgressOrders: 0,
+              completedOrders: 0,
+              onHoldOrders: 0,
+              avgWeightDifference: "0.000",
+              approvedOrders: 0,
+              overdueOrders: 0,
+              recentActivities: [],
+            }
+            resolve() // Resolve anyway to not block the UI
+          },
+        })
+    })
+  }
 
-    const formValue = this.updateForm.value
-    const updateRequest: StageUpdateRequest = {
-      stage: "polish",
-      status: formValue.status,
-      updatedBy: this.currentUser.name,
-      notes: formValue.notes || undefined,
-      jamahWeight: formValue.jamahWeight ? Number.parseFloat(formValue.jamahWeight) : undefined,
-      completedDate: formValue.status === "completed" ? new Date() : undefined,
-    }
+  openUpdateDialog(order: AssignedWorkOrder): void {
+    const dialogRef = this.dialog.open(PolishUpdateDialogComponent, {
+      width: "800px",
+      maxWidth: "95vw",
+      data: { order },
+    })
 
-    this.roleDashboardService
-      .updateStageStatus(this.selectedOrder.id, updateRequest)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.successMessage = response.message
-            this.loadAssignedOrders()
-            this.closeUpdateModal()
-          } else {
-            this.errorMessage = response.message
-          }
-          this.updating = false
-          this.clearMessages()
-        },
-        error: (error) => {
-          console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
-          this.updating = false
-          this.clearMessages()
-        },
-      })
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.loadData()
+        this.showSnackBar("Work order updated successfully", "success")
+      }
+    })
+  }
+
+  openStonesDialog(order: AssignedWorkOrder): void {
+    const dialogRef = this.dialog.open(StonesDialogComponent, {
+      width: "900px",
+      maxWidth: "95vw",
+      data: { workOrderId: order.id, workOrderNumber: order.workOrderNumber },
+    })
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.showSnackBar("Stones data updated successfully", "success")
+      }
+    })
   }
 
   quickStatusUpdate(order: AssignedWorkOrder, newStatus: "in-progress" | "completed"): void {
     if (!this.currentUser) return
 
     this.updating = true
-    this.clearMessages()
 
-    const updateRequest: StageUpdateRequest = {
-      stage: "polish",
+    const updateRequest = {
+      stage: "polish" as const,
       status: newStatus,
       updatedBy: this.currentUser.name,
       completedDate: newStatus === "completed" ? new Date() : undefined,
-      notes: newStatus === "completed" ? "Polishing completed with final finish" : undefined,
+      notes: newStatus === "completed" ? "Polish completed with final finish" : undefined,
     }
 
     this.roleDashboardService
@@ -142,41 +177,39 @@ export class PolishComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           if (response.success) {
-            this.successMessage = response.message
-            this.loadAssignedOrders()
+            this.showSnackBar(response.message, "success")
+            this.loadData()
           } else {
-            this.errorMessage = response.message
+            this.showSnackBar(response.message, "error")
           }
           this.updating = false
-          this.clearMessages()
         },
         error: (error) => {
           console.error("Error updating work order:", error)
-          this.errorMessage = "Failed to update work order. Please try again."
+          this.showSnackBar("Failed to update work order. Please try again.", "error")
           this.updating = false
-          this.clearMessages()
         },
       })
   }
 
-  getStatusBadgeClass(status: string): string {
-    const statusClasses = {
-      "not-started": "bg-light text-dark",
-      "in-progress": "bg-warning text-dark",
-      completed: "bg-success",
-      "on-hold": "bg-danger",
+  getStatusColor(status: string): string {
+    const statusColors = {
+      "not-started": "warn",
+      "in-progress": "accent",
+      completed: "primary",
+      "on-hold": "warn",
     }
-    return statusClasses[status as keyof typeof statusClasses] || "bg-secondary"
+    return statusColors[status as keyof typeof statusColors] || "basic"
   }
 
   getStatusIcon(status: string): string {
     const statusIcons = {
-      "not-started": "fas fa-clock",
-      "in-progress": "fas fa-spinner",
-      completed: "fas fa-check-circle",
-      "on-hold": "fas fa-pause-circle",
+      "not-started": "schedule",
+      "in-progress": "autorenew",
+      completed: "check_circle",
+      "on-hold": "pause_circle_filled",
     }
-    return statusIcons[status as keyof typeof statusIcons] || "fas fa-question-circle"
+    return statusIcons[status as keyof typeof statusIcons] || "help"
   }
 
   formatDate(date: Date | undefined): string {
@@ -200,20 +233,14 @@ export class PolishComponent implements OnInit, OnDestroy {
     return this.calculateDaysRemaining(expectedDate) < 0
   }
 
-  private clearMessages(): void {
-    setTimeout(() => {
-      this.successMessage = ""
-      this.errorMessage = ""
-    }, 5000)
+  refreshData(): void {
+    this.loadData()
   }
 
-    logout(): void {
-  this.authService.logout();
-  this.router.navigate(['/login']);
-}
-
-  refreshOrders(): void {
-    this.loadAssignedOrders()
+  private showSnackBar(message: string, type: "success" | "error"): void {
+    this.snackBar.open(message, "Close", {
+      duration: 5000,
+      panelClass: type === "success" ? "success-snackbar" : "error-snackbar",
+    })
   }
 }
-

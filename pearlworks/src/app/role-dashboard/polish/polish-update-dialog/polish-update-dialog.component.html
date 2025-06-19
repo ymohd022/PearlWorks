@@ -1,0 +1,147 @@
+<div class="dialog-container">
+  <mat-dialog-content>
+    <div class="dialog-header">
+      <h2 mat-dialog-title>
+        <mat-icon class="title-icon">auto_fix_high</mat-icon>
+        Update Polish Work Order
+      </h2>
+      <div class="order-info">
+        <mat-chip color="primary" selected>{{ data.order.workOrderNumber }}</mat-chip>
+        <span class="party-name">{{ data.order.partyName }}</span>
+      </div>
+    </div>
+
+    <!-- Order Summary Card -->
+    <mat-card class="summary-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>info</mat-icon>
+          Order Summary
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="label">Product Type:</span>
+            <span class="value">{{ data.order.productType }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Issue Weight:</span>
+            <span class="value">{{ data.order.issueWeight }}g</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Current Jamah Weight:</span>
+            <span class="value">{{ data.order.jamahWeight ? data.order.jamahWeight + 'g' : 'Not Set' }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Assigned Date:</span>
+            <span class="value">{{ data.order.assignedDate | date:'mediumDate' }}</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Update Form -->
+    <form [formGroup]="updateForm" (ngSubmit)="onSubmit()" class="update-form">
+      
+      <!-- Status Selection -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Status</mat-label>
+        <mat-select formControlName="status" required>
+          <mat-option *ngFor="let status of statusOptions" [value]="status.value">
+            <mat-icon class="option-icon">{{ status.icon }}</mat-icon>
+            {{ status.label }}
+          </mat-option>
+        </mat-select>
+        <mat-error *ngIf="updateForm.get('status')?.hasError('required')">
+          Status is required
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Jamah Weight -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Jamah Weight (grams)</mat-label>
+        <input matInput 
+               type="number" 
+               formControlName="jamahWeight"
+               step="0.01"
+               min="0.01"
+               placeholder="Enter final weight after polishing">
+        <mat-hint>Weight after polishing process completion</mat-hint>
+        <mat-error *ngIf="updateForm.get('jamahWeight')?.hasError('required')">
+          Jamah weight is required for completed status
+        </mat-error>
+        <mat-error *ngIf="updateForm.get('jamahWeight')?.hasError('min')">
+          Weight must be greater than 0
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Weight Difference Display -->
+      <div *ngIf="updateForm.get('jamahWeight')?.value" class="weight-difference">
+        <mat-icon [color]="getWeightDifferenceColor()">balance</mat-icon>
+        <span class="difference-label">Weight Difference:</span>
+        <span class="difference-value" [ngClass]="'text-' + getWeightDifferenceColor()">
+          {{ calculateWeightDifference() | number:'1.3-3' }}g
+        </span>
+      </div>
+
+      <!-- Sorting Jamah (for completed status) -->
+      <mat-form-field *ngIf="updateForm.get('status')?.value === 'completed'" 
+                      appearance="outline" 
+                      class="full-width">
+        <mat-label>Sorting Jamah</mat-label>
+        <input matInput 
+               type="number" 
+               formControlName="sortingJamah"
+               min="1"
+               placeholder="Enter sorting number for jamah">
+        <mat-hint>Sorting number for completed work</mat-hint>
+        <mat-error *ngIf="updateForm.get('sortingJamah')?.hasError('required')">
+          Sorting jamah is required for completed status
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Approval Checkbox -->
+      <div class="approval-section">
+        <mat-checkbox formControlName="approved" color="primary">
+          <span class="approval-label">
+            <mat-icon>verified</mat-icon>
+            Mark as Approved
+          </span>
+        </mat-checkbox>
+        <mat-hint class="approval-hint">
+          Check this box to approve the polish work quality
+        </mat-hint>
+      </div>
+
+      <!-- Notes -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Polish Notes/Remarks</mat-label>
+        <textarea matInput 
+                  formControlName="notes"
+                  rows="4"
+                  placeholder="Add notes about polish quality, finish type, issues encountered, etc..."></textarea>
+        <mat-hint>Include details about polish process, quality, or any observations</mat-hint>
+      </mat-form-field>
+
+    </form>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-button 
+            type="button" 
+            (click)="onCancel()"
+            [disabled]="loading">
+      Cancel
+    </button>
+    <button mat-raised-button 
+            color="primary"
+            type="submit"
+            (click)="onSubmit()"
+            [disabled]="loading || updateForm.invalid">
+      <mat-spinner *ngIf="loading" diameter="20" class="button-spinner"></mat-spinner>
+      <mat-icon *ngIf="!loading">save</mat-icon>
+      {{ loading ? 'Updating...' : 'Update Order' }}
+    </button>
+  </mat-dialog-actions>
+</div>

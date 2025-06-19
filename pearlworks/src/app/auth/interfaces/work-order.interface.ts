@@ -75,7 +75,7 @@ export interface CreateWorkOrderRequest {
 }
 
 export type WorkOrderStatus = "pending" | "in-progress" | "completed" | "dispatched" | "cancelled"
-export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold"
+export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold" | "dispatched";
 export type StageType = "framing" | "setting" | "polish" | "repair" | "dispatch"
 
 export interface WorkOrderFilters {

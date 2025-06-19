@@ -9,6 +9,11 @@ const workOrderRoutes = require("./routes/workOrders")
 const userRoutes = require("./routes/users")
 const dashboardRoutes = require("./routes/dashboard")
 const framingRoutes = require("./routes/framing")
+const polishRoutes = require("./routes/polish")
+const repairRoutes = require("./routes/repair")
+const dispatchRoutes = require("./routes/dispatch")
+const adminRoutes = require("./routes/admin")
+
 const PORT = process.env.PORT || 3000
 const app = express()
 
@@ -38,6 +43,10 @@ app.use("/api/work-orders", workOrderRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/framing", framingRoutes)
+app.use("/api/polish", polishRoutes)
+app.use("/api/repair", repairRoutes)
+app.use("/api/dispatch", dispatchRoutes)
+app.use("/api/admin", adminRoutes)
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

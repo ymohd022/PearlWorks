@@ -5,6 +5,7 @@ import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/ro
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
 import { Router } from '@angular/router';
+import { DispatchStatistics, TrackingInfo } from "../../auth/interfaces/dispatch.interface"
 
 @Component({
   selector: 'app-dispatch',
@@ -22,13 +23,20 @@ export class DispatchComponent implements OnInit, OnDestroy {
   updateForm: FormGroup
 
   private destroy$ = new Subject<void>()
-  private currentUser: any 
+  private currentUser: any
+
+  // Add these properties to the component class:
+  statistics: DispatchStatistics | null = null
+  showStatistics = false
+  searchTerm = ""
+  statusFilter = "all"
+  selectedTrackingInfo: TrackingInfo | null = null
 
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
     private fb: FormBuilder,
-     private router: Router,
+    private router: Router,
   ) {
     this.updateForm = this.fb.group({
       status: ["", Validators.required],
@@ -36,16 +44,81 @@ export class DispatchComponent implements OnInit, OnDestroy {
       notes: [""],
       courierService: [""],
     })
-    this.currentUser = this.authService.getUserData()
   }
 
+  // Add these methods:
   ngOnInit(): void {
     this.loadReadyToDispatchOrders()
+    this.loadStatistics()
   }
 
   ngOnDestroy(): void {
     this.destroy$.next()
     this.destroy$.complete()
+  }
+
+  loadStatistics(): void {
+    this.roleDashboardService
+      .getDispatchStatistics()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.statistics = response.data
+          }
+        },
+        error: (error) => {
+          console.error("Error loading dispatch statistics:", error)
+        },
+      })
+  }
+
+  toggleStatistics(): void {
+    this.showStatistics = !this.showStatistics
+  }
+
+  get filteredOrders(): AssignedWorkOrder[] {
+    let filtered = this.readyToDispatchOrders
+
+    // Apply search filter
+    if (this.searchTerm) {
+      const term = this.searchTerm.toLowerCase()
+      filtered = filtered.filter(
+        (order) =>
+          order.workOrderNumber.toLowerCase().includes(term) ||
+          order.partyName.toLowerCase().includes(term) ||
+          order.productType.toLowerCase().includes(term),
+      )
+    }
+
+    // Apply status filter
+    if (this.statusFilter !== "all") {
+      filtered = filtered.filter((order) => order.status === this.statusFilter)
+    }
+
+    return filtered
+  }
+
+  viewTracking(order: AssignedWorkOrder): void {
+    this.roleDashboardService
+      .getTrackingInfo(order.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.selectedTrackingInfo = response.data
+          }
+        },
+        error: (error) => {
+          console.error("Error loading tracking info:", error)
+          this.errorMessage = "Failed to load tracking information"
+          this.clearMessages()
+        },
+      })
+  }
+
+  closeTrackingModal(): void {
+    this.selectedTrackingInfo = null
   }
 
   loadReadyToDispatchOrders(): void {
@@ -135,7 +208,7 @@ export class DispatchComponent implements OnInit, OnDestroy {
 
     const updateRequest: StageUpdateRequest = {
       stage: "dispatch",
-      status: "completed",
+      status: "dispatched",
       updatedBy: this.currentUser.name,
       notes: "Item dispatched successfully",
       completedDate: new Date(),
@@ -191,21 +264,14 @@ export class DispatchComponent implements OnInit, OnDestroy {
     })
   }
 
-    isDispatched(order: AssignedWorkOrder): boolean {
-    return order.status === 'completed' && order.currentStage === 'dispatch';
-  }
-
-  isReadyForDispatch(order: AssignedWorkOrder): boolean {
-    return order.status === 'completed' && order.currentStage !== 'dispatch';
-  }
-
   private clearMessages(): void {
     setTimeout(() => {
       this.successMessage = ""
       this.errorMessage = ""
     }, 5000)
   }
-    logout(): void {
+
+      logout(): void {
   this.authService.logout();
   this.router.navigate(['/login']);
 }

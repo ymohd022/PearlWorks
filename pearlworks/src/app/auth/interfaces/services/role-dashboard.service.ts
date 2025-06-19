@@ -33,6 +33,11 @@ export class RoleDashboardService {
   getSettingStatistics(): Observable<{ success: boolean; data: SettingStatistics }> {
     return this.apiService.getSettingStatistics()
   }
+getSettingWorkOrders(): Observable<SettingWorkOrder[]> {
+  return this.apiService.getAssignedOrders('setting').pipe(
+    map(response => response.data as SettingWorkOrder[])
+  );
+}
 
   getFramingStatistics(): Observable<{ success: boolean; data: any }> {
     return this.apiService.getFramingStatistics()
@@ -58,9 +63,31 @@ export class RoleDashboardService {
   getStones(workOrderId: string): Observable<any> {
     return this.apiService.getStones(workOrderId)
   }
-  getSettingWorkOrders(): Observable<SettingWorkOrder[]> {
-  return this.apiService.getAssignedOrders("setting").pipe(
-    map((response: any) => response.data as SettingWorkOrder[])
-  );
-}
+
+  getPolishStatistics(): Observable<{ success: boolean; data: any }> {
+    return this.apiService.getPolishStatistics()
+  }
+
+  returnStones(workOrderId: string, stones: any[]): Observable<{ success: boolean; message: string }> {
+    return this.apiService.returnStones(workOrderId, stones)
+  }
+
+   getRepairStatistics(): Observable<{ success: boolean; data: any }> {
+    return this.apiService.getRepairStatistics()
+  }
+
+  getRepairWorkOrder(workOrderId: string): Observable<any> {
+    return this.apiService.getRepairWorkOrder(workOrderId)
+  }
+   getDispatchStatistics(): Observable<{ success: boolean; data: any }> {
+    return this.apiService.getDispatchStatistics()
+  }
+
+  getTrackingInfo(workOrderId: string): Observable<any> {
+    return this.apiService.getTrackingInfo(workOrderId)
+  }
+
+  updateDeliveryStatus(workOrderId: string, statusUpdate: any): Observable<{ success: boolean; message: string }> {
+    return this.apiService.updateDeliveryStatus(workOrderId, statusUpdate)
+  }
 }

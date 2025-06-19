@@ -11,15 +11,111 @@
             </h2>
             <p class="text-muted mb-0">Manage completed work orders ready for dispatch</p>
           </div>
-             <button class="btn btn-outline-danger" (click)="logout()">
-      <i class="fas fa-sign-out-alt me-2"></i>
-      Logout
-    </button>
           <button class="btn btn-outline-primary" (click)="refreshOrders()" [disabled]="loading">
             <i class="fas fa-sync-alt me-2" [class.fa-spin]="loading"></i>
             Refresh
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Statistics Toggle -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <button 
+          class="btn btn-outline-info"
+          (click)="toggleStatistics()"
+        >
+          <i class="fas fa-chart-bar me-2"></i>
+          {{ showStatistics ? 'Hide' : 'Show' }} Statistics
+        </button>
+      </div>
+    </div>
+
+    <!-- Statistics Dashboard -->
+    <div class="row mb-4" *ngIf="showStatistics && statistics">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+              <i class="fas fa-chart-line me-2"></i>
+              Dispatch Statistics
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-3 col-sm-6">
+                <div class="stat-card bg-success">
+                  <div class="stat-icon">
+                    <i class="fas fa-shipping-fast"></i>
+                  </div>
+                  <div class="stat-content">
+                    <h3>{{ statistics.overview.totalDispatched }}</h3>
+                    <p>Total Dispatched</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3 col-sm-6">
+                <div class="stat-card bg-info">
+                  <div class="stat-icon">
+                    <i class="fas fa-truck"></i>
+                  </div>
+                  <div class="stat-content">
+                    <h3>{{ statistics.overview.inTransit }}</h3>
+                    <p>In Transit</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3 col-sm-6">
+                <div class="stat-card bg-warning">
+                  <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                  </div>
+                  <div class="stat-content">
+                    <h3>{{ statistics.overview.readyForDispatch }}</h3>
+                    <p>Ready for Dispatch</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3 col-sm-6">
+                <div class="stat-card bg-primary">
+                  <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                  </div>
+                  <div class="stat-content">
+                    <h3>{{ statistics.overview.totalDelivered }}</h3>
+                    <p>Delivered</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="row mb-3">
+      <div class="col-md-8">
+        <div class="input-group">
+          <span class="input-group-text">
+            <i class="fas fa-search"></i>
+          </span>
+          <input 
+            type="text" 
+            class="form-control" 
+            placeholder="Search by work order number, party name, or product type..."
+            [(ngModel)]="searchTerm"
+          >
+        </div>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select" [(ngModel)]="statusFilter">
+          <option value="all">All Status</option>
+          <option value="completed">Ready to Dispatch</option>
+          <option value="dispatched">Dispatched</option>
+          <option value="on-hold">On Hold</option>
+        </select>
       </div>
     </div>
 
@@ -68,7 +164,7 @@
 
             <!-- Work Orders Grid (Mobile-First) -->
             <div *ngIf="!loading && readyToDispatchOrders.length > 0" class="work-orders-grid">
-              <div *ngFor="let order of readyToDispatchOrders" class="work-order-card">
+              <div *ngFor="let order of filteredOrders" class="work-order-card">
                 <div class="card-content">
                   <!-- Header -->
                   <div class="order-header">
@@ -111,28 +207,39 @@
                   <!-- Actions -->
                   <div class="order-actions">
                     <!-- Quick Actions -->
-                    <div class="quick-actions mb-2" *ngIf="!isDispatched(order)">
-  <button 
-    class="btn btn-sm btn-success me-2"
-    (click)="quickDispatch(order)"
-    [disabled]="updating"
-  >
-    <i class="fas fa-shipping-fast me-1"></i>
-    Quick Dispatch
-  </button>
-</div>
+                    <div class="quick-actions mb-2" *ngIf="order.status !== 'dispatched'">
+                      <button 
+                        class="btn btn-sm btn-success me-2"
+                        (click)="quickDispatch(order)"
+                        [disabled]="updating"
+                      >
+                        <i class="fas fa-shipping-fast me-1"></i>
+                        Quick Dispatch
+                      </button>
+                    </div>
                     
                     <!-- Detailed Dispatch -->
                     <button 
-  class="btn btn-sm btn-outline-primary"
-  (click)="openDispatchModal(order)"
-  data-bs-toggle="modal" 
-  data-bs-target="#dispatchModal"
-  [disabled]="updating || isDispatched(order)"
->
-  <i class="fas fa-edit me-1"></i>
-  {{ isDispatched(order) ? 'View Details' : 'Dispatch with Details' }}
-</button>
+                      class="btn btn-sm btn-outline-primary"
+                      (click)="openDispatchModal(order)"
+                      data-bs-toggle="modal" 
+                      data-bs-target="#dispatchModal"
+                      [disabled]="updating || order.status === 'dispatched'"
+                    >
+                      <i class="fas fa-edit me-1"></i>
+                      {{ order.status === 'dispatched' ? 'View Details' : 'Dispatch with Details' }}
+                    </button>
+
+                    <!-- Add tracking button in actions -->
+                    <button 
+                      class="btn btn-sm btn-outline-info me-2"
+                      (click)="viewTracking(order)"
+                      data-bs-toggle="modal" 
+                      data-bs-target="#trackingModal"
+                    >
+                      <i class="fas fa-map-marker-alt me-1"></i>
+                      Track
+                    </button>
                   </div>
                 </div>
               </div>
@@ -175,14 +282,14 @@
           <div class="mb-3">
             <label class="form-label">Dispatch Status *</label>
             <select 
-  class="form-select" 
-  formControlName="status"
-  [class.is-invalid]="updateForm.get('status')?.invalid && updateForm.get('status')?.touched"
->
-  <option value="">Select Status</option>
-  <option value="completed">Dispatch</option>
-  <option value="on-hold">On Hold</option>
-</select>
+              class="form-select" 
+              formControlName="status"
+              [class.is-invalid]="updateForm.get('status')?.invalid && updateForm.get('status')?.touched"
+            >
+              <option value="">Select Status</option>
+              <option value="dispatched">Dispatched</option>
+              <option value="on-hold">On Hold</option>
+            </select>
             <div class="invalid-feedback">
               Please select a dispatch status
             </div>
@@ -249,6 +356,46 @@
           <i *ngIf="!updating" class="fas fa-shipping-fast me-2"></i>
           {{ updating ? 'Processing...' : 'Confirm Dispatch' }}
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Tracking Modal at the end -->
+<div class="modal fade" id="trackingModal" tabindex="-1" aria-labelledby="trackingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="trackingModalLabel">
+          <i class="fas fa-map-marker-alt text-info me-2"></i>
+          Tracking Information
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" (click)="closeTrackingModal()"></button>
+      </div>
+      <div class="modal-body" *ngIf="selectedTrackingInfo">
+        <div class="tracking-info">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <strong>Work Order:</strong> {{ selectedTrackingInfo.work_order_number }}
+            </div>
+            <div class="col-md-6">
+              <strong>Party:</strong> {{ selectedTrackingInfo.party_name }}
+            </div>
+            <div class="col-md-6">
+              <strong>Courier Service:</strong> {{ selectedTrackingInfo.courier_service || 'N/A' }}
+            </div>
+            <div class="col-md-6">
+              <strong>Tracking Number:</strong> {{ selectedTrackingInfo.tracking_number || 'N/A' }}
+            </div>
+            <div class="col-md-6">
+              <strong>Dispatch Date:</strong> {{ formatDate(selectedTrackingInfo.dispatch_date) }}
+            </div>
+            <div class="col-md-6">
+              <strong>Delivery Status:</strong> 
+              <span class="badge bg-info ms-2">{{ selectedTrackingInfo.delivery_status | titlecase }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -1,10 +1,12 @@
 import { Component,  OnInit,  OnDestroy } from "@angular/core"
 import {  FormBuilder,  FormGroup, Validators } from "@angular/forms"
-import { Subject, takeUntil } from "rxjs"
+import { Subject, takeUntil, forkJoin} from "rxjs"
 import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/role-dashboard.interface"
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
 import { Router } from '@angular/router';
+import { RepairStatistics, RepairType } from "../../auth/interfaces/repair.interface"
+import { REPAIR_TYPES } from "../../auth/interfaces/repair.interface"
 
 @Component({
   selector: 'app-repair',
@@ -14,12 +16,20 @@ import { Router } from '@angular/router';
 })
 export class RepairComponent implements OnInit, OnDestroy {
   assignedOrders: AssignedWorkOrder[] = []
+  filteredOrders: AssignedWorkOrder[] = []
+  statistics: RepairStatistics | null = null
   loading = false
   updating = false
+  loadingStats = false
   successMessage = ""
   errorMessage = ""
   selectedOrder: AssignedWorkOrder | null = null
   updateForm: FormGroup
+  searchTerm = ""
+  statusFilter = "all"
+  showStatistics = false
+
+  repairTypes: readonly RepairType[] = REPAIR_TYPES // Declare repairTypes using REPAIR_TYPES
 
   private destroy$ = new Subject<void>()
   private currentUser: any
@@ -27,7 +37,7 @@ export class RepairComponent implements OnInit, OnDestroy {
   constructor(
     private roleDashboardService: RoleDashboardService,
     private authService: AuthService,
-     private router: Router,
+    private router: Router,
     private fb: FormBuilder,
   ) {
     this.updateForm = this.fb.group({
@@ -36,16 +46,43 @@ export class RepairComponent implements OnInit, OnDestroy {
       notes: [""],
       repairType: [""],
     })
-    this.currentUser = this.authService.getUserData()
   }
 
   ngOnInit(): void {
-    this.loadAssignedOrders()
+    this.loadData()
   }
 
   ngOnDestroy(): void {
     this.destroy$.next()
     this.destroy$.complete()
+  }
+
+  loadData(): void {
+    this.loading = true
+    this.loadingStats = true
+
+    forkJoin({
+      orders: this.roleDashboardService.getAssignedWorkOrders("repair"),
+      statistics: this.roleDashboardService.getRepairStatistics(),
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          this.assignedOrders = data.orders
+          this.filteredOrders = [...this.assignedOrders]
+          this.statistics = data.statistics.data
+          this.loading = false
+          this.loadingStats = false
+          this.applyFilters()
+        },
+        error: (error) => {
+          console.error("Error loading data:", error)
+          this.errorMessage = "Failed to load repair data"
+          this.loading = false
+          this.loadingStats = false
+          this.clearMessages()
+        },
+      })
   }
 
   loadAssignedOrders(): void {
@@ -56,7 +93,9 @@ export class RepairComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (orders) => {
           this.assignedOrders = orders
+          this.filteredOrders = [...orders]
           this.loading = false
+          this.applyFilters()
         },
         error: (error) => {
           console.error("Error loading assigned orders:", error)
@@ -65,6 +104,40 @@ export class RepairComponent implements OnInit, OnDestroy {
           this.clearMessages()
         },
       })
+  }
+
+  applyFilters(): void {
+    let filtered = [...this.assignedOrders]
+
+    // Apply search filter
+    if (this.searchTerm.trim()) {
+      const term = this.searchTerm.toLowerCase()
+      filtered = filtered.filter(
+        (order) =>
+          order.workOrderNumber.toLowerCase().includes(term) ||
+          order.partyName.toLowerCase().includes(term) ||
+          order.productType.toLowerCase().includes(term),
+      )
+    }
+
+    // Apply status filter
+    if (this.statusFilter !== "all") {
+      filtered = filtered.filter((order) => order.status === this.statusFilter)
+    }
+
+    this.filteredOrders = filtered
+  }
+
+  onSearchChange(): void {
+    this.applyFilters()
+  }
+
+  onStatusFilterChange(): void {
+    this.applyFilters()
+  }
+
+  toggleStatistics(): void {
+    this.showStatistics = !this.showStatistics
   }
 
   openUpdateModal(order: AssignedWorkOrder): void {
@@ -214,9 +287,9 @@ export class RepairComponent implements OnInit, OnDestroy {
   }
 
     logout(): void {
-  this.authService.logout();
-  this.router.navigate(['/login']);
-}
+    this.authService.logout()
+    this.router.navigate(["/login"])
+  }
 
   refreshOrders(): void {
     this.loadAssignedOrders()

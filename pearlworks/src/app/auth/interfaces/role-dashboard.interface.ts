@@ -34,5 +34,5 @@ export interface StageUpdateResponse {
   workOrder?: AssignedWorkOrder
 }
 
-export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold"
+export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold" | "dispatched" 
 export type StageType = "framing" | "setting" | "polish" | "repair" | "dispatch"

@@ -1,0 +1,242 @@
+<div class="stones-dialog">
+  <mat-dialog-content>
+    <div class="dialog-header">
+      <h2 mat-dialog-title>
+        <mat-icon class="title-icon">diamond</mat-icon>
+        Stones Management
+      </h2>
+      <div class="order-info">
+        <mat-chip color="primary" selected>{{ data.workOrderNumber }}</mat-chip>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="loading-container">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Loading stones data...</p>
+    </div>
+
+    <!-- Stones Data -->
+    <div *ngIf="!loading && stonesData" class="stones-content">
+      
+      <!-- Received Stones Section -->
+      <mat-card class="stones-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon color="primary">input</mat-icon>
+            Received Stones
+            <mat-chip color="accent" selected>{{ calculateTotalPieces(stonesData.receivedStones) }} pieces</mat-chip>
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div *ngIf="stonesData.receivedStones.length === 0" class="empty-state">
+            <mat-icon>info</mat-icon>
+            <p>No stones received for this work order</p>
+          </div>
+          
+          <div *ngIf="stonesData.receivedStones.length > 0" class="table-container">
+            <table mat-table [dataSource]="stonesData.receivedStones" class="stones-table">
+              
+              <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Type</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.type }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="pieces">
+                <th mat-header-cell *matHeaderCellDef>Pieces</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.pieces }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightGrams">
+                <th mat-header-cell *matHeaderCellDef>Weight (g)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightGrams | number:'1.3-3' }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightCarats">
+                <th mat-header-cell *matHeaderCellDef>Weight (ct)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightCarats | number:'1.3-3' }}</td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumnsReceived"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumnsReceived;"></tr>
+            </table>
+
+            <!-- Totals Row -->
+            <div class="totals-row">
+              <div class="total-item">
+                <span class="label">Total Pieces:</span>
+                <span class="value">{{ calculateTotalPieces(stonesData.receivedStones) }}</span>
+              </div>
+              <div class="total-item">
+                <span class="label">Total Weight (g):</span>
+                <span class="value">{{ calculateTotalWeight(stonesData.receivedStones, 'grams') | number:'1.3-3' }}</span>
+              </div>
+              <div class="total-item">
+                <span class="label">Total Weight (ct):</span>
+                <span class="value">{{ calculateTotalWeight(stonesData.receivedStones, 'carats') | number:'1.3-3' }}</span>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Returned Stones Section -->
+      <mat-card class="stones-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon color="warn">output</mat-icon>
+            Returned Stones
+            <mat-chip color="warn" selected>{{ calculateTotalPieces(stonesData.returnedStones) }} pieces</mat-chip>
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div *ngIf="stonesData.returnedStones.length === 0" class="empty-state">
+            <mat-icon>info</mat-icon>
+            <p>No stones returned yet</p>
+          </div>
+          
+          <div *ngIf="stonesData.returnedStones.length > 0" class="table-container">
+            <table mat-table [dataSource]="stonesData.returnedStones" class="stones-table">
+              
+              <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Type</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.type }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="pieces">
+                <th mat-header-cell *matHeaderCellDef>Pieces</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.pieces }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightGrams">
+                <th mat-header-cell *matHeaderCellDef>Weight (g)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightGrams | number:'1.3-3' }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="weightCarats">
+                <th mat-header-cell *matHeaderCellDef>Weight (ct)</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.weightCarats | number:'1.3-3' }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="returnedDate">
+                <th mat-header-cell *matHeaderCellDef>Returned Date</th>
+                <td mat-cell *matCellDef="let stone">{{ stone.returnedDate | date:'mediumDate' }}</td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumnsReturned"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumnsReturned;"></tr>
+            </table>
+
+            <!-- Totals Row -->
+            <div class="totals-row">
+              <div class="total-item">
+                <span class="label">Total Pieces:</span>
+                <span class="value">{{ calculateTotalPieces(stonesData.returnedStones) }}</span>
+              </div>
+              <div class="total-item">
+                <span class="label">Total Weight (g):</span>
+                <span class="value">{{ calculateTotalWeight(stonesData.returnedStones, 'grams') | number:'1.3-3' }}</span>
+              </div>
+              <div class="total-item">
+                <span class="label">Total Weight (ct):</span>
+                <span class="value">{{ calculateTotalWeight(stonesData.returnedStones, 'carats') | number:'1.3-3' }}</span>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Return Stones Form -->
+      <mat-card class="return-stones-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon color="accent">add_circle</mat-icon>
+            Return Stones
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="returnStonesForm" (ngSubmit)="onSubmitReturnStones()">
+            <div formArrayName="stones">
+              <div *ngFor="let stoneGroup of stonesFormArray.controls; let i = index" 
+                   [formGroupName]="i" 
+                   class="stone-form-row">
+                
+                <mat-form-field appearance="outline">
+                  <mat-label>Stone Type</mat-label>
+                  <input matInput formControlName="type" placeholder="e.g., Ruby, Diamond">
+                  <mat-error *ngIf="stoneGroup.get('type')?.hasError('required')">
+                    Stone type is required
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Pieces</mat-label>
+                  <input matInput type="number" formControlName="pieces" min="1">
+                  <mat-error *ngIf="stoneGroup.get('pieces')?.hasError('required')">
+                    Pieces is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('pieces')?.hasError('min')">
+                    Minimum 1 piece required
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Weight (grams)</mat-label>
+                  <input matInput type="number" formControlName="weightGrams" step="0.001" min="0.001">
+                  <mat-error *ngIf="stoneGroup.get('weightGrams')?.hasError('required')">
+                    Weight in grams is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('weightGrams')?.hasError('min')">
+                    Weight must be greater than 0
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Weight (carats)</mat-label>
+                  <input matInput type="number" formControlName="weightCarats" step="0.001" min="0.001">
+                  <mat-error *ngIf="stoneGroup.get('weightCarats')?.hasError('required')">
+                    Weight in carats is required
+                  </mat-error>
+                  <mat-error *ngIf="stoneGroup.get('weightCarats')?.hasError('min')">
+                    Weight must be greater than 0
+                  </mat-error>
+                </mat-form-field>
+
+                <button mat-icon-button 
+                        color="warn" 
+                        type="button"
+                        (click)="removeStoneFromReturn(i)"
+                        matTooltip="Remove stone">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button mat-stroked-button 
+                      type="button" 
+                      (click)="addStoneToReturn()"
+                      color="primary">
+                <mat-icon>add</mat-icon>
+                Add Stone
+              </button>
+
+              <button mat-raised-button 
+                      type="submit"
+                      color="accent"
+                      [disabled]="submitting || returnStonesForm.invalid || stonesFormArray.length === 0">
+                <mat-spinner *ngIf="submitting" diameter="20" class="button-spinner"></mat-spinner>
+                <mat-icon *ngIf="!submitting">save</mat-icon>
+                {{ submitting ? 'Returning...' : 'Return Stones' }}
+              </button>
+            </div>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-button (click)="onClose()">Close</button>
+  </mat-dialog-actions>
+</div>
