@@ -256,6 +256,362 @@ router.get("/activity-logs", authenticateToken,  async (req, res) => {
   }
 })
 
+// USER MANAGEMENT ROUTES
+
+// Get all users with filtering
+router.get("/users", authenticateToken, async (req, res) => {
+  try {
+    const { role, isActive, search } = req.query
+
+    let query = `
+      SELECT 
+        id,
+        email,
+        name,
+        role,
+        is_active,
+        created_at,
+        updated_at
+      FROM users
+      WHERE 1=1
+    `
+
+    const params = []
+
+    if (role) {
+      query += " AND role = ?"
+      params.push(role)
+    }
+
+    if (isActive !== undefined) {
+      query += " AND is_active = ?"
+      params.push(isActive === "true" ? 1 : 0)
+    }
+
+    if (search) {
+      query += " AND (name LIKE ? OR email LIKE ?)"
+      params.push(`%${search}%`, `%${search}%`)
+    }
+
+    query += " ORDER BY created_at DESC"
+
+    const [users] = await db.execute(query, params)
+
+    const transformedUsers = users.map((user) => ({
+      id: user.id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: Boolean(user.is_active),
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+    }))
+
+    res.json({
+      success: true,
+      data: transformedUsers,
+    })
+  } catch (error) {
+    console.error("Get users error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    })
+  }
+})
+
+// Create new user
+router.post(
+  "/users",
+  [
+    authenticateToken,
+    body("email").isEmail().normalizeEmail(),
+    body("password").isLength({ min: 6 }),
+    body("name").trim().isLength({ min: 2 }),
+    body("role").isIn(["admin", "manager", "framing", "setting", "polish", "repair", "dispatch"]),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        })
+      }
+
+      const { email, password, name, role } = req.body
+
+      // Check if user already exists
+      const [existingUser] = await db.execute("SELECT id FROM users WHERE email = ?", [email])
+
+      if (existingUser.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "User with this email already exists",
+        })
+      }
+
+      // Hash password
+      const saltRounds = 10
+      const hashedPassword = await bcrypt.hash(password, saltRounds)
+
+      // Create user
+      const [result] = await db.execute(
+        "INSERT INTO users (email, password, name, role, is_active) VALUES (?, ?, ?, ?, 1)",
+        [email, hashedPassword, name, role],
+      )
+
+      // Get created user
+      const [newUser] = await db.execute(
+        "SELECT id, email, name, role, is_active, created_at, updated_at FROM users WHERE id = ?",
+        [result.insertId],
+      )
+
+      res.status(201).json({
+        success: true,
+        message: "User created successfully",
+        data: {
+          id: newUser[0].id.toString(),
+          email: newUser[0].email,
+          name: newUser[0].name,
+          role: newUser[0].role,
+          isActive: Boolean(newUser[0].is_active),
+          createdAt: newUser[0].created_at,
+          updatedAt: newUser[0].updated_at,
+        },
+      })
+    } catch (error) {
+      console.error("Create user error:", error)
+      res.status(500).json({
+        success: false,
+        message: "Failed to create user",
+        error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      })
+    }
+  },
+)
+
+// Update user
+router.put(
+  "/users/:userId",
+  [
+    authenticateToken,
+    body("email").optional().isEmail().normalizeEmail(),
+    body("password").optional().isLength({ min: 6 }),
+    body("name").optional().trim().isLength({ min: 2 }),
+    body("role").optional().isIn(["admin", "manager", "framing", "setting", "polish", "repair", "dispatch"]),
+    body("isActive").optional().isBoolean(),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        })
+      }
+
+      const { userId } = req.params
+      const { email, password, name, role, isActive } = req.body
+
+      // Check if user exists
+      const [existingUser] = await db.execute("SELECT id FROM users WHERE id = ?", [userId])
+
+      if (existingUser.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        })
+      }
+
+      // Check if email is already taken by another user
+      if (email) {
+        const [emailCheck] = await db.execute("SELECT id FROM users WHERE email = ? AND id != ?", [email, userId])
+        if (emailCheck.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Email is already taken by another user",
+          })
+        }
+      }
+
+      // Build update query
+      const updateFields = []
+      const updateValues = []
+
+      if (email) {
+        updateFields.push("email = ?")
+        updateValues.push(email)
+      }
+
+      if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10)
+        updateFields.push("password = ?")
+        updateValues.push(hashedPassword)
+      }
+
+      if (name) {
+        updateFields.push("name = ?")
+        updateValues.push(name)
+      }
+
+      if (role) {
+        updateFields.push("role = ?")
+        updateValues.push(role)
+      }
+
+      if (isActive !== undefined) {
+        updateFields.push("is_active = ?")
+        updateValues.push(isActive ? 1 : 0)
+      }
+
+      if (updateFields.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "No fields to update",
+        })
+      }
+
+      updateFields.push("updated_at = CURRENT_TIMESTAMP")
+      updateValues.push(userId)
+
+      const updateQuery = `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`
+      await db.execute(updateQuery, updateValues)
+
+      // Get updated user
+      const [updatedUser] = await db.execute(
+        "SELECT id, email, name, role, is_active, created_at, updated_at FROM users WHERE id = ?",
+        [userId],
+      )
+
+      res.json({
+        success: true,
+        message: "User updated successfully",
+        data: {
+          id: updatedUser[0].id.toString(),
+          email: updatedUser[0].email,
+          name: updatedUser[0].name,
+          role: updatedUser[0].role,
+          isActive: Boolean(updatedUser[0].is_active),
+          createdAt: updatedUser[0].created_at,
+          updatedAt: updatedUser[0].updated_at,
+        },
+      })
+    } catch (error) {
+      console.error("Update user error:", error)
+      res.status(500).json({
+        success: false,
+        message: "Failed to update user",
+        error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      })
+    }
+  },
+)
+
+// Delete user
+router.delete("/users/:userId", authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    // Check if user exists
+    const [existingUser] = await db.execute("SELECT id, email FROM users WHERE id = ?", [userId])
+
+    if (existingUser.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      })
+    }
+
+    // Prevent admin from deleting themselves
+    if (userId === req.user.id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account",
+      })
+    }
+
+    // Check if user has any work order assignments
+    const [assignments] = await db.execute("SELECT COUNT(*) as count FROM worker_assignments WHERE user_id = ?", [
+      userId,
+    ])
+
+    if (assignments[0].count > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete user with existing work order assignments",
+      })
+    }
+
+    // Delete user
+    await db.execute("DELETE FROM users WHERE id = ?", [userId])
+
+    res.json({
+      success: true,
+      message: "User deleted successfully",
+    })
+  } catch (error) {
+    console.error("Delete user error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete user",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    })
+  }
+})
+
+// Get user statistics
+router.get("/user-statistics", authenticateToken,  async (req, res) => {
+  try {
+    // Get total users
+    const [totalUsers] = await db.execute("SELECT COUNT(*) as count FROM users")
+
+    // Get active users
+    const [activeUsers] = await db.execute("SELECT COUNT(*) as count FROM users WHERE is_active = 1")
+
+    // Get inactive users
+    const [inactiveUsers] = await db.execute("SELECT COUNT(*) as count FROM users WHERE is_active = 0")
+
+    // Get users by role
+    const [usersByRole] = await db.execute(`
+      SELECT 
+        role,
+        COUNT(*) as count
+      FROM users
+      WHERE is_active = 1
+      GROUP BY role
+    `)
+
+    const roleStats = usersByRole.reduce((acc, item) => {
+      acc[item.role] = item.count
+      return acc
+    }, {})
+
+    res.json({
+      success: true,
+      data: {
+        totalUsers: totalUsers[0].count,
+        activeUsers: activeUsers[0].count,
+        inactiveUsers: inactiveUsers[0].count,
+        usersByRole: roleStats,
+      },
+    })
+  } catch (error) {
+    console.error("Get user statistics error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user statistics",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    })
+  }
+})
+
+
 // Get admin statistics
 router.get("/statistics", authenticateToken,  async (req, res) => {
   try {

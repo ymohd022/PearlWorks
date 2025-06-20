@@ -47,6 +47,7 @@ import { FramingUpdateComponent } from './role-dashboard/framing/framing-update/
 import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-update-dialog/setting-update-dialog.component';
 import { PolishUpdateDialogComponent } from './role-dashboard/polish/polish-update-dialog/polish-update-dialog.component';
 import { StonesDialogComponent } from './role-dashboard/polish/stones-dialog/stones-dialog.component';
+import { UserManagementComponent } from './auth/interfaces/components/admin-dashboard/user-management/user-management.component';
 
 
 @NgModule({
@@ -65,6 +66,7 @@ import { StonesDialogComponent } from './role-dashboard/polish/stones-dialog/sto
     SettingUpdateDialogComponent,
     PolishUpdateDialogComponent,
     StonesDialogComponent,
+    UserManagementComponent,
   ],
   imports: [
     BrowserModule,

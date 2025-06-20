@@ -1,0 +1,278 @@
+<div class="user-management">
+  <div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h3 class="mb-1">
+              <i class="fas fa-users text-primary me-2"></i>
+              User Management
+            </h3>
+            <p class="text-muted mb-0">Manage system users and their roles</p>
+          </div>
+          <button class="btn btn-primary" (click)="openCreateModal()">
+            <i class="fas fa-plus me-2"></i>
+            Add User
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <form [formGroup]="filterForm" class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label small">Role</label>
+            <select class="form-select form-select-sm" formControlName="role">
+              <option value="">All Roles</option>
+              <option *ngFor="let role of roles" [value]="role">{{ role | titlecase }}</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Status</label>
+            <select class="form-select form-select-sm" formControlName="isActive">
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Search</label>
+            <input type="text" class="form-control form-control-sm" formControlName="search" placeholder="Search by name or email...">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">&nbsp;</label>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
+                <i class="fas fa-times me-1"></i>Clear
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom">
+        <h5 class="mb-0">
+          <i class="fas fa-list text-primary me-2"></i>
+          Users ({{ filteredUsers.length }})
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="loading">
+                <td colspan="6" class="text-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="!loading && filteredUsers.length === 0">
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="fas fa-users fa-2x mb-2 d-block"></i>
+                  No users found
+                </td>
+              </tr>
+              <tr *ngFor="let user of filteredUsers">
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="avatar-circle me-3">
+                      {{ user.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div>
+                      <strong>{{ user.name }}</strong>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <span class="badge {{ getRoleBadgeClass(user.role) }}">
+                    {{ user.role | titlecase }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" [class.bg-success]="user.isActive" [class.bg-secondary]="!user.isActive">
+                    {{ user.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td>{{ formatDate(user.createdAt) }}</td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" (click)="openEditModal(user)" title="Edit User">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" (click)="openDeleteModal(user)" title="Delete User">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal fade" [class.show]="showCreateModal" [style.display]="showCreateModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-plus text-primary me-2"></i>
+          Add New User
+        </h5>
+        <button type="button" class="btn-close" (click)="closeCreateModal()"></button>
+      </div>
+      <form [formGroup]="createForm" (ngSubmit)="createUser()">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Name *</label>
+            <input type="text" class="form-control" formControlName="name" placeholder="Enter full name">
+            <div *ngIf="createForm.get('name')?.invalid && createForm.get('name')?.touched" class="text-danger small">
+              Name is required (minimum 2 characters)
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email *</label>
+            <input type="email" class="form-control" formControlName="email" placeholder="Enter email address">
+            <div *ngIf="createForm.get('email')?.invalid && createForm.get('email')?.touched" class="text-danger small">
+              Valid email is required
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password *</label>
+            <input type="password" class="form-control" formControlName="password" placeholder="Enter password">
+            <div *ngIf="createForm.get('password')?.invalid && createForm.get('password')?.touched" class="text-danger small">
+              Password is required (minimum 6 characters)
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Role *</label>
+            <select class="form-select" formControlName="role">
+              <option value="">Select Role</option>
+              <option *ngFor="let role of roles" [value]="role">{{ role | titlecase }}</option>
+            </select>
+            <div *ngIf="createForm.get('role')?.invalid && createForm.get('role')?.touched" class="text-danger small">
+              Role is required
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeCreateModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" [disabled]="createForm.invalid">
+            <i class="fas fa-save me-2"></i>Create User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" [class.show]="showEditModal" [style.display]="showEditModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-edit text-primary me-2"></i>
+          Edit User
+        </h5>
+        <button type="button" class="btn-close" (click)="closeEditModal()"></button>
+      </div>
+      <form [formGroup]="editForm" (ngSubmit)="updateUser()">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Name *</label>
+            <input type="text" class="form-control" formControlName="name" placeholder="Enter full name">
+            <div *ngIf="editForm.get('name')?.invalid && editForm.get('name')?.touched" class="text-danger small">
+              Name is required (minimum 2 characters)
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email *</label>
+            <input type="email" class="form-control" formControlName="email" placeholder="Enter email address">
+            <div *ngIf="editForm.get('email')?.invalid && editForm.get('email')?.touched" class="text-danger small">
+              Valid email is required
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" formControlName="password" placeholder="Leave blank to keep current password">
+            <small class="text-muted">Leave blank to keep current password</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Role *</label>
+            <select class="form-select" formControlName="role">
+              <option value="">Select Role</option>
+              <option *ngFor="let role of roles" [value]="role">{{ role | titlecase }}</option>
+            </select>
+            <div *ngIf="editForm.get('role')?.invalid && editForm.get('role')?.touched" class="text-danger small">
+              Role is required
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" formControlName="isActive" id="isActive">
+              <label class="form-check-label" for="isActive">
+                Active User
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" [disabled]="editForm.invalid">
+            <i class="fas fa-save me-2"></i>Update User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal fade" [class.show]="showDeleteModal" [style.display]="showDeleteModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Confirm Delete
+        </h5>
+        <button type="button" class="btn-close" (click)="closeDeleteModal()"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete the user <strong>{{ selectedUser?.name }}</strong>?</p>
+        <p class="text-muted small">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeDeleteModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" (click)="deleteUser()">
+          <i class="fas fa-trash me-2"></i>Delete User
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Backdrop -->
+<div class="modal-backdrop fade" [class.show]="showCreateModal || showEditModal || showDeleteModal" *ngIf="showCreateModal || showEditModal || showDeleteModal"></div>

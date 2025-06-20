@@ -89,6 +89,38 @@ export class ApiService {
     })
   }
 
+  // User Management endpoints
+  getUsers(filters?: any): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/users`, {
+      headers: this.getHeaders(),
+      params: filters || {},
+    })
+  }
+
+  createUser(user: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/users`, user, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  updateUser(userId: string, user: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/admin/users/${userId}`, user, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  deleteUser(userId: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/admin/users/${userId}`, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  getUserStatistics(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/user-statistics`, {
+      headers: this.getHeaders(),
+    })
+  }
+
   // Role Dashboard endpoints
   getAssignedOrders(stage: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/${stage}/assigned-orders`, {

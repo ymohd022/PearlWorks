@@ -19,7 +19,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   loading = false
   activityLoading = false
   expandedOrderId: string | null = null
-
+  activeTab = "dashboard"
   filterForm: FormGroup
   private destroy$ = new Subject<void>()
 
@@ -135,6 +135,11 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.expandedOrderId = this.expandedOrderId === orderId ? null : orderId
   }
 
+ // Navigation methods
+  setActiveTab(tab: string): void {
+    this.activeTab = tab
+  }
+  
   getStatusBadgeClass(status: string): string {
     const statusClasses = {
       pending: "bg-warning text-dark",
