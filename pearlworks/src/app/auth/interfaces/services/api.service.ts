@@ -58,6 +58,33 @@ export class ApiService {
     })
   }
 
+  
+  // Manager-specific endpoints
+  getManagerWorkOrders(filters?: any): Observable<any> {
+    return this.http.get(`${this.apiUrl}/manager/work-orders`, {
+      headers: this.getHeaders(),
+      params: filters || {},
+    })
+  }
+
+  getManagerStageOrders(stage: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/manager/stage-orders/${stage}`, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/manager/update-stage/${workOrderId}`, updateRequest, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  getManagerStatistics(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/manager/statistics`, {
+      headers: this.getHeaders(),
+    })
+  }
+
   // Admin-specific endpoints
   getDetailedWorkOrders(filters?: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/admin/work-orders`, {

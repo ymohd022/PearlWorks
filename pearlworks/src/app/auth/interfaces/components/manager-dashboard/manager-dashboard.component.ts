@@ -11,6 +11,7 @@ import  {
 import  { WorkOrderService } from "../../services/work-order.service"
 import { Router } from '@angular/router';
 import { AuthService } from "../../services/auth.service"
+import { RoleDashboardService } from "../../services/role-dashboard.service"
 
 @Component({
   selector: 'app-manager-dashboard',
@@ -19,27 +20,68 @@ import { AuthService } from "../../services/auth.service"
   styleUrl: './manager-dashboard.component.css'
 })
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
-  createOrderForm: FormGroup
-  assignmentForm: FormGroup
+  // Tab management
+  selectedTabIndex = 0
+
+  // Forms
+  createOrderForm!: FormGroup
+  assignmentForm!: FormGroup
+  stageUpdateForm!: FormGroup
+
+  // Data
   workOrders: WorkOrder[] = []
   workers: Worker[] = []
+  stageWorkOrders: { [key: string]: any[] } = {}
+
+  // Loading states
   loading = false
   submitting = false
   assigning = false
+  updatingStage = false
+
+  // Messages
   successMessage = ""
   errorMessage = ""
-  selectedOrderForAssignment: WorkOrder | null = null
 
+  // Selected items
+  selectedOrderForAssignment: WorkOrder | null = null
+  selectedStageOrder: any = null
+  selectedStage: StageType = "framing"
+
+  // Constants
   stageTypes: StageType[] = ["framing", "setting", "polish", "repair", "dispatch"]
+  stageIcons = {
+    framing: "build",
+    setting: "settings",
+    polish: "auto_fix_high",
+    repair: "build_circle",
+    dispatch: "local_shipping",
+  }
 
   private destroy$ = new Subject<void>()
 
   constructor(
     private fb: FormBuilder,
     private workOrderService: WorkOrderService,
+    private roleDashboardService: RoleDashboardService,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
   ) {
+    this.initializeForms()
+  }
+
+  ngOnInit(): void {
+    this.loadWorkOrders()
+    this.loadWorkers()
+    this.loadStageData()
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next()
+    this.destroy$.complete()
+  }
+
+  private initializeForms(): void {
     this.createOrderForm = this.fb.group({
       partyName: ["", [Validators.required, Validators.minLength(2)]],
       poNumber: [""],
@@ -48,6 +90,8 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       modelNumber: [""],
       descriptionOfWork: [""],
       expectedCompletionDate: [""],
+      grossWeight: [0, [Validators.min(0)]],
+      netWeight: [0, [Validators.min(0)]],
       stones: this.fb.array([]),
       assignedWorkers: this.fb.array([]),
     })
@@ -55,81 +99,27 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.assignmentForm = this.fb.group({
       assignments: this.fb.array([]),
     })
-  }
 
-  ngOnInit(): void {
-    this.loadWorkOrders()
-    this.loadWorkers()
+    this.stageUpdateForm = this.fb.group({
+      status: ["", Validators.required],
+      jamahWeight: [0],
+      sortingIssue: [0],
+      sortingJamah: [0],
+      notes: [""],
+      approved: [false],
+    })
+
     this.addStoneRow()
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next()
-    this.destroy$.complete()
-  }
-
-  // Form Array Getters
-  get stones(): FormArray {
-    return this.createOrderForm.get("stones") as FormArray
-  }
-
-  get assignedWorkers(): FormArray {
-    return this.createOrderForm.get("assignedWorkers") as FormArray
-  }
-
-  get assignments(): FormArray {
-    return this.assignmentForm.get("assignments") as FormArray
-  }
-
-  // Stone Management
-  addStoneRow(): void {
-    const stoneGroup = this.fb.group({
-      type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(1)]],
-      weightGrams: [0, [Validators.required, Validators.min(0.01)]],
-      weightCarats: [0, [Validators.required, Validators.min(0.01)]],
-      isReceived: [true],
-    })
-
-    this.stones.push(stoneGroup)
-  }
-
-  removeStoneRow(index: number): void {
-    if (this.stones.length > 1) {
-      this.stones.removeAt(index)
+  // Tab Management
+  onTabChange(index: number): void {
+    this.selectedTabIndex = index
+    if (index > 0) {
+      const stage = this.stageTypes[index - 1]
+      this.selectedStage = stage
+      this.loadStageOrders(stage)
     }
-  }
-
-  // Worker Assignment for New Orders
-  addWorkerAssignment(): void {
-    const workerGroup = this.fb.group({
-      stageType: ["", Validators.required],
-      workerId: ["", Validators.required],
-      workerName: [""],
-    })
-
-    this.assignedWorkers.push(workerGroup)
-  }
-
-  removeWorkerAssignment(index: number): void {
-    this.assignedWorkers.removeAt(index)
-  }
-
-  onWorkerChange(index: number): void {
-    const assignment = this.assignedWorkers.at(index)
-    const workerId = assignment.get("workerId")?.value
-    const worker = this.workers.find((w) => w.id === workerId)
-
-    if (worker) {
-      assignment.patchValue({
-        workerName: worker.name,
-        stageType: worker.role,
-      })
-    }
-  }
-
-  getWorkersByStage(stageType: string): Worker[] {
-    return this.workers.filter((w) => w.role === stageType)
   }
 
   // Data Loading
@@ -168,7 +158,89 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       })
   }
 
-  // Form Submission
+  loadStageData(): void {
+    this.stageTypes.forEach((stage) => {
+      this.loadStageOrders(stage)
+    })
+  }
+
+  loadStageOrders(stage: StageType): void {
+    this.roleDashboardService
+      .getAssignedWorkOrders(stage)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (orders) => {
+          this.stageWorkOrders[stage] = orders
+        },
+        error: (error) => {
+          console.error(`Error loading ${stage} orders:`, error)
+        },
+      })
+  }
+
+  // Form Array Getters
+  get stones(): FormArray {
+    return this.createOrderForm.get("stones") as FormArray
+  }
+
+  get assignedWorkers(): FormArray {
+    return this.createOrderForm.get("assignedWorkers") as FormArray
+  }
+
+  get assignments(): FormArray {
+    return this.assignmentForm.get("assignments") as FormArray
+  }
+
+  // Stone Management
+  addStoneRow(): void {
+    const stoneGroup = this.fb.group({
+      type: ["", Validators.required],
+      pieces: [0, [Validators.required, Validators.min(1)]],
+      weightGrams: [0, [Validators.required, Validators.min(0.01)]],
+      weightCarats: [0, [Validators.required, Validators.min(0.01)]],
+      isReceived: [true],
+    })
+    this.stones.push(stoneGroup)
+  }
+
+  removeStoneRow(index: number): void {
+    if (this.stones.length > 1) {
+      this.stones.removeAt(index)
+    }
+  }
+
+  // Worker Assignment for New Orders
+  addWorkerAssignment(): void {
+    const workerGroup = this.fb.group({
+      stageType: ["", Validators.required],
+      workerId: ["", Validators.required],
+      workerName: [""],
+    })
+    this.assignedWorkers.push(workerGroup)
+  }
+
+  removeWorkerAssignment(index: number): void {
+    this.assignedWorkers.removeAt(index)
+  }
+
+  onWorkerChange(index: number): void {
+    const assignment = this.assignedWorkers.at(index)
+    const workerId = assignment.get("workerId")?.value
+    const worker = this.workers.find((w) => w.id === workerId)
+
+    if (worker) {
+      assignment.patchValue({
+        workerName: worker.name,
+        stageType: worker.role,
+      })
+    }
+  }
+
+  getWorkersByStage(stageType: string): Worker[] {
+    return this.workers.filter((w) => w.role === stageType)
+  }
+
+  // Work Order Creation
   onSubmitOrder(): void {
     if (this.createOrderForm.invalid) {
       this.markFormGroupTouched(this.createOrderForm)
@@ -265,6 +337,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
           this.successMessage = `Workers assigned successfully to ${updatedOrder.workOrderNumber}!`
           this.selectedOrderForAssignment = null
           this.loadWorkOrders()
+          this.loadStageData()
           this.assigning = false
           this.clearMessages()
         },
@@ -280,6 +353,57 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   closeAssignmentModal(): void {
     this.selectedOrderForAssignment = null
     this.assignments.clear()
+  }
+
+  // Stage Update Management
+  openStageUpdateModal(order: any, stage: StageType): void {
+    this.selectedStageOrder = order
+    this.selectedStage = stage
+
+    this.stageUpdateForm.patchValue({
+      status: order.status || "not-started",
+      jamahWeight: order.jamahWeight || 0,
+      sortingIssue: order.sortingIssue || 0,
+      sortingJamah: order.sortingJamah || 0,
+      notes: order.notes || "",
+      approved: order.approved || false,
+    })
+  }
+
+  submitStageUpdate(): void {
+    if (!this.selectedStageOrder || this.stageUpdateForm.invalid) return
+
+    this.updatingStage = true
+    this.clearMessages()
+
+    const updateRequest = {
+      stage: this.selectedStage,
+      ...this.stageUpdateForm.value,
+    }
+
+    this.roleDashboardService
+      .updateStageStatus(this.selectedStageOrder.id, updateRequest)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.successMessage = response.message
+          this.selectedStageOrder = null
+          this.loadStageOrders(this.selectedStage)
+          this.updatingStage = false
+          this.clearMessages()
+        },
+        error: (error) => {
+          console.error("Error updating stage:", error)
+          this.errorMessage = "Failed to update stage. Please try again."
+          this.updatingStage = false
+          this.clearMessages()
+        },
+      })
+  }
+
+  closeStageUpdateModal(): void {
+    this.selectedStageOrder = null
+    this.stageUpdateForm.reset()
   }
 
   // Utility Methods
@@ -307,16 +431,16 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   getStatusBadgeClass(status: string): string {
     const statusClasses = {
-      pending: "bg-warning text-dark",
-      "in-progress": "bg-primary",
-      completed: "bg-success",
-      dispatched: "bg-info",
-      cancelled: "bg-danger",
+      "not-started": "mat-chip-outlined",
+      "in-progress": "mat-primary",
+      completed: "mat-accent",
+      "on-hold": "mat-warn",
+      dispatched: "mat-primary",
     }
-    return statusClasses[status as keyof typeof statusClasses] || "bg-secondary"
+    return statusClasses[status as keyof typeof statusClasses] || "mat-chip-outlined"
   }
 
-  formatDate(date: Date | undefined): string {
+  formatDate(date: Date | string | undefined): string {
     if (!date) return "N/A"
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -325,15 +449,43 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     })
   }
 
-  logout(): void {
-  this.authService.logout();
-  this.router.navigate(['/login']);
-}
-
   calculateProgress(workOrder: WorkOrder): number {
     if (workOrder.stages.length === 0) return 0
     const completedStages = workOrder.stages.filter((stage) => stage.status === "completed").length
     return Math.round((completedStages / workOrder.stages.length) * 100)
   }
-}
 
+  // Stone weight conversion methods
+  onWeightGramsChange(index: number, event: any): void {
+    const value = Number.parseFloat(event.target.value) || 0
+    const carats = (value * 5).toFixed(3)
+    const stoneControl = this.stones.at(index)
+    stoneControl.patchValue(
+      {
+        weightCarats: Number.parseFloat(carats),
+      },
+      { emitEvent: false },
+    )
+  }
+
+  onWeightCaratsChange(index: number, event: any): void {
+    const value = Number.parseFloat(event.target.value) || 0
+    const grams = (value / 5).toFixed(3)
+    const stoneControl = this.stones.at(index)
+    stoneControl.patchValue(
+      {
+        weightGrams: Number.parseFloat(grams),
+      },
+      { emitEvent: false },
+    )
+  }
+
+  formatWeight(value: number): string {
+    return value ? value.toFixed(3) : "0.000"
+  }
+
+  logout(): void {
+    this.authService.logout()
+    this.router.navigate(["/login"])
+  }
+}

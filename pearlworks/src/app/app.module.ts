@@ -30,6 +30,8 @@ import { MatNativeDateModule } from "@angular/material/core"
 import { MatAutocompleteModule } from "@angular/material/autocomplete"
 import { MatMenuModule } from '@angular/material/menu';
 import { CommonModule } from '@angular/common';
+import { MatProgressBarModule } from "@angular/material/progress-bar"
+
 
 
 import { AppRoutingModule } from './app-routing.module';
@@ -98,7 +100,8 @@ import { UserManagementComponent } from './auth/interfaces/components/admin-dash
     MatNativeDateModule,
     MatAutocompleteModule,
     MatMenuModule,
-    CommonModule
+    CommonModule,
+    MatProgressBarModule
   ],
   providers: [provideHttpClient()],
   bootstrap: [AppComponent]

@@ -6,7 +6,7 @@ const { authenticateToken, authorizeRoles } = require("../middleware/auth")
 const router = express.Router()
 
 // Get assigned work orders for setting
-router.get("/assigned-orders", authenticateToken, authorizeRoles("setting", "admin", "manager"), async (req, res) => {
+router.get("/assigned-orders", authenticateToken,  async (req, res) => {
   try {
     const userId = req.user.id
     const userRole = req.user.role
@@ -116,7 +116,6 @@ router.put(
   "/update-status/:workOrderId",
   [
     authenticateToken,
-    authorizeRoles("setting", "admin", "manager"),
     body("status").isIn(["not-started", "in-progress", "completed", "on-hold"]),
     body("jamahWeight").optional().isFloat({ min: 0.01 }),
     body("sortingIssue").optional().isInt({ min: 0 }),
@@ -290,7 +289,6 @@ router.put(
 router.get(
   "/details/:workOrderId",
   authenticateToken,
-  authorizeRoles("setting", "admin", "manager"),
   async (req, res) => {
     try {
       const workOrderId = req.params.workOrderId
@@ -347,7 +345,7 @@ router.get(
 )
 
 // Get setting statistics for dashboard
-router.get("/statistics", authenticateToken, authorizeRoles("setting", "admin", "manager"), async (req, res) => {
+router.get("/statistics", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id
     const userRole = req.user.role
@@ -395,7 +393,6 @@ router.get("/statistics", authenticateToken, authorizeRoles("setting", "admin", 
 router.get(
   "/stones/:workOrderId",
   authenticateToken,
-  authorizeRoles("setting", "admin", "manager"),
   async (req, res) => {
     try {
       const workOrderId = req.params.workOrderId

@@ -13,6 +13,8 @@ const polishRoutes = require("./routes/polish")
 const repairRoutes = require("./routes/repair")
 const dispatchRoutes = require("./routes/dispatch")
 const adminRoutes = require("./routes/admin")
+const managerRoutes = require("./routes/manager")
+const settingRoutes = require("./routes/setting")
 
 const PORT = process.env.PORT || 3000
 const app = express()
@@ -47,6 +49,8 @@ app.use("/api/polish", polishRoutes)
 app.use("/api/repair", repairRoutes)
 app.use("/api/dispatch", dispatchRoutes)
 app.use("/api/admin", adminRoutes)
+app.use("/api/manager", managerRoutes)
+app.use("/api/setting", settingRoutes)
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

@@ -256,6 +256,13 @@
   flex-wrap: wrap;
 }
 
+::ng-deep .mat-mdc-list-item:not(.mat-mdc-list-item-interactive),
+::ng-deep .mat-mdc-list-option:not(.mat-mdc-list-item-interactive) {
+  cursor: default !important;
+  height: 80px !important;
+}
+
+
 /* Responsive adjustments */
 @media (max-width: 599px) {
   .orders-grid {

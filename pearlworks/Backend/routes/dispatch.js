@@ -16,7 +16,7 @@ router.get("/assigned-orders", authenticateToken, async (req, res) => {
         wo.id,
         wo.work_order_number as workOrderNumber,
         wo.party_name as partyName,
-        wo.product_type as productType,
+        wo.item_details as productType,
         wo.issue_weight as issueWeight,
         wo.jamah_weight as jamahWeight,
         wo.expected_completion_date as expectedCompletionDate,

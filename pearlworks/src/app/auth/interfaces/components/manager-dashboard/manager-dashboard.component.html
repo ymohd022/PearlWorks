@@ -1,376 +1,460 @@
 <div class="manager-dashboard">
-  <div class="container-fluid">
-    <!-- Header -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <h2 class="mb-1">
-              <i class="fas fa-user-tie text-primary me-2"></i>
-              Manager Dashboard
-            </h2>
-          
-            <p class="text-muted mb-0">Create and manage work orders</p>
-          </div>
-            <button class="btn btn-outline-danger" (click)="logout()">
-      <i class="fas fa-sign-out-alt me-2"></i>
-      Logout
+  <!-- Header Toolbar -->
+  <mat-toolbar color="primary" class="dashboard-header">
+    <mat-icon>supervisor_account</mat-icon>
+    <span class="toolbar-title">Manager Dashboard</span>
+    <span class="toolbar-spacer"></span>
+    <button mat-icon-button (click)="logout()" matTooltip="Logout">
+      <mat-icon>logout</mat-icon>
     </button>
-        </div>
-      </div>
-    </div>
+  </mat-toolbar>
 
-    <!-- Success/Error Messages -->
-    <div class="row mb-3" *ngIf="successMessage || errorMessage">
-      <div class="col-12">
-        <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
-          <i class="fas fa-check-circle me-2"></i>
-          {{ successMessage }}
-          <button type="button" class="btn-close" (click)="successMessage = ''" aria-label="Close"></button>
-        </div>
-        <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          {{ errorMessage }}
-          <button type="button" class="btn-close" (click)="errorMessage = ''" aria-label="Close"></button>
-        </div>
-      </div>
-    </div>
-
-    <div class="row">
-      <!-- Create Work Order Form -->
-      <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="fas fa-plus-circle text-success me-2"></i>
-              Create New Work Order
-            </h5>
-          </div>
-          <div class="card-body">
-            <form [formGroup]="createOrderForm" (ngSubmit)="onSubmitOrder()">
-              <!-- Basic Information -->
-              <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                  <label class="form-label">Party Name *</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    formControlName="partyName"
-                    [class.is-invalid]="createOrderForm.get('partyName')?.invalid && createOrderForm.get('partyName')?.touched"
-                    placeholder="Enter party name"
-                  >
-                  <div class="invalid-feedback">
-                    Party name is required (min 2 characters)
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">P.O. Number</label>
-                  <input type="text" class="form-control" formControlName="poNumber" placeholder="Enter PO number">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">P.O. Date</label>
-                  <input type="date" class="form-control" formControlName="poDate">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Expected Completion</label>
-                  <input type="date" class="form-control" formControlName="expectedCompletionDate">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Item Details *</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    formControlName="itemDetails"
-                    [class.is-invalid]="createOrderForm.get('itemDetails')?.invalid && createOrderForm.get('itemDetails')?.touched"
-                    placeholder="e.g., Gold Ring Set"
-                  >
-                  <div class="invalid-feedback">
-                    Item details are required
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Model Number</label>
-                  <input type="text" class="form-control" formControlName="modelNumber" placeholder="Enter model number">
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Description of Work</label>
-                  <textarea 
-                    class="form-control" 
-                    formControlName="descriptionOfWork" 
-                    rows="2"
-                    placeholder="Describe the work to be done..."
-                  ></textarea>
-                </div>
-              </div>
-
-              <!-- Stones Section -->
-              <div class="mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <h6 class="text-primary mb-0">
-                    <i class="fas fa-gem me-2"></i>
-                    Stones Information
-                  </h6>
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="addStoneRow()">
-                    <i class="fas fa-plus me-1"></i>Add Stone
-                  </button>
-                </div>
-                <div formArrayName="stones">
-                  <div *ngFor="let stone of stones.controls; let i = index" [formGroupName]="i" class="stone-row mb-3 p-3 border rounded">
-                    <div class="row g-2">
-                      <div class="col-md-3">
-                        <label class="form-label small">Type *</label>
-                        <input 
-                          type="text" 
-                          class="form-control form-control-sm" 
-                          formControlName="type"
-                          placeholder="e.g., Ruby, CZ"
-                        >
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small">Pieces *</label>
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          formControlName="pieces"
-                          min="1"
-                        >
-                      </div>
-                      <div class="col-md-3">
-                        <label class="form-label small">Weight (g) *</label>
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          formControlName="weightGrams"
-                          step="0.01"
-                          min="0.01"
-                        >
-                      </div>
-                      <div class="col-md-3">
-                        <label class="form-label small">Weight (ct) *</label>
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          formControlName="weightCarats"
-                          step="0.01"
-                          min="0.01"
-                        >
-                      </div>
-                      <div class="col-md-1 d-flex align-items-end">
-                        <button 
-                          type="button" 
-                          class="btn btn-sm btn-outline-danger" 
-                          (click)="removeStoneRow(i)"
-                          [disabled]="stones.length === 1"
-                        >
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Worker Assignment Section -->
-              <div class="mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <h6 class="text-primary mb-0">
-                    <i class="fas fa-users me-2"></i>
-                    Assign Workers (Optional)
-                  </h6>
-                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="addWorkerAssignment()">
-                    <i class="fas fa-plus me-1"></i>Add Assignment
-                  </button>
-                </div>
-                <div formArrayName="assignedWorkers">
-                  <div *ngFor="let worker of assignedWorkers.controls; let i = index" [formGroupName]="i" class="worker-row mb-3 p-3 border rounded bg-light">
-                    <div class="row g-2">
-                      <div class="col-md-4">
-                        <label class="form-label small">Stage</label>
-                        <select class="form-select form-select-sm" formControlName="stageType">
-                          <option value="">Select Stage</option>
-                          <option *ngFor="let stage of stageTypes" [value]="stage">
-                            {{ stage | titlecase }}
-                          </option>
-                        </select>
-                      </div>
-                      <div class="col-md-6">
-                        <label class="form-label small">Worker</label>
-                        <select 
-                          class="form-select form-select-sm" 
-                          formControlName="workerId"
-                          (change)="onWorkerChange(i)"
-                        >
-                          <option value="">Select Worker</option>
-                          <option 
-                            *ngFor="let w of getWorkersByStage(worker.get('stageType')?.value)" 
-                            [value]="w.id"
-                          >
-                            {{ w.name }}
-                          </option>
-                        </select>
-                      </div>
-                      <div class="col-md-2 d-flex align-items-end">
-                        <button 
-                          type="button" 
-                          class="btn btn-sm btn-outline-danger" 
-                          (click)="removeWorkerAssignment(i)"
-                        >
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Submit Button -->
-              <div class="d-grid">
-                <button 
-                  type="submit" 
-                  class="btn btn-primary btn-lg"
-                  [disabled]="submitting || createOrderForm.invalid"
-                >
-                  <span *ngIf="submitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                  <i *ngIf="!submitting" class="fas fa-save me-2"></i>
-                  {{ submitting ? 'Creating...' : 'Create Work Order' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <!-- Work Orders List -->
-      <div class="col-lg-6 mb-4">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0">
-              <i class="fas fa-list-alt text-primary me-2"></i>
-              Work Orders
-            </h5>
-          </div>
-          <div class="card-body p-0">
-            <div *ngIf="loading" class="text-center py-4">
-              <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            </div>
-            <div *ngIf="!loading && workOrders.length === 0" class="text-center py-4 text-muted">
-              <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-              No work orders found
-            </div>
-            <div class="work-orders-list">
-              <div *ngFor="let order of workOrders" class="work-order-item p-3 border-bottom">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <h6 class="mb-1">
-                      <strong class="text-primary">{{ order.workOrderNumber }}</strong>
-                    </h6>
-                    <div class="text-muted small">
-                      {{ order.partyName }} • {{ formatDate(order.createdDate) }}
-                    </div>
-                    <div class="small">{{ order.itemDetails }}</div>
-                  </div>
-                  <div class="text-end">
-                    <span class="badge {{ getStatusBadgeClass(order.status) }} mb-2">
-                      {{ order.status | titlecase }}
-                    </span>
-                    <div class="progress" style="width: 80px; height: 6px;">
-                      <div class="progress-bar" [style.width.%]="calculateProgress(order)"></div>
-                    </div>
-                    <small class="text-muted">{{ calculateProgress(order) }}%</small>
-                  </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="small text-muted">
-                    <i class="fas fa-users me-1"></i>
-                    {{ order.assignedWorkers.length }} workers assigned
-                  </div>
-                  <button 
-                    class="btn btn-sm btn-outline-primary"
-                    (click)="openAssignmentModal(order)"
-                    data-bs-toggle="modal" 
-                    data-bs-target="#assignmentModal"
-                  >
-                    <i class="fas fa-user-plus me-1"></i>
-                    Assign Workers
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <!-- Success/Error Messages -->
+  <div class="messages-container" *ngIf="successMessage || errorMessage">
+    <mat-card *ngIf="successMessage" class="success-message">
+      <mat-card-content>
+        <mat-icon>check_circle</mat-icon>
+        {{ successMessage }}
+      </mat-card-content>
+    </mat-card>
+    <mat-card *ngIf="errorMessage" class="error-message">
+      <mat-card-content>
+        <mat-icon>error</mat-icon>
+        {{ errorMessage }}
+      </mat-card-content>
+    </mat-card>
   </div>
+
+  <!-- Main Content with Tabs -->
+  <mat-tab-group [(selectedIndex)]="selectedTabIndex" (selectedTabChange)="onTabChange($event.index)" class="main-tabs">
+    
+    <!-- Work Orders Tab -->
+    <mat-tab label="Work Orders">
+      <ng-template matTabContent>
+        <div class="tab-content">
+          <div class="content-grid">
+            
+            <!-- Create Work Order Section -->
+            <mat-card class="create-order-card">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-icon>add_circle</mat-icon>
+                  Create New Work Order
+                </mat-card-title>
+              </mat-card-header>
+              
+              <mat-card-content>
+                <form [formGroup]="createOrderForm" (ngSubmit)="onSubmitOrder()">
+                  
+                  <!-- Basic Information -->
+                  <div class="form-section">
+                    <h3>Basic Information</h3>
+                    <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Party Name *</mat-label>
+                        <input matInput formControlName="partyName" placeholder="Enter party name">
+                        <mat-error *ngIf="createOrderForm.get('partyName')?.hasError('required')">
+                          Party name is required
+                        </mat-error>
+                        <mat-error *ngIf="createOrderForm.get('partyName')?.hasError('minlength')">
+                          Minimum 2 characters required
+                        </mat-error>
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>P.O. Number</mat-label>
+                        <input matInput formControlName="poNumber" placeholder="Enter PO number">
+                      </mat-form-field>
+                    </div>
+
+                    <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>P.O. Date</mat-label>
+                        <input matInput [matDatepicker]="poDatePicker" formControlName="poDate">
+                        <mat-datepicker-toggle matSuffix [for]="poDatePicker"></mat-datepicker-toggle>
+                        <mat-datepicker #poDatePicker></mat-datepicker>
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Expected Completion</mat-label>
+                        <input matInput [matDatepicker]="completionDatePicker" formControlName="expectedCompletionDate">
+                        <mat-datepicker-toggle matSuffix [for]="completionDatePicker"></mat-datepicker-toggle>
+                        <mat-datepicker #completionDatePicker></mat-datepicker>
+                      </mat-form-field>
+                    </div>
+
+                    <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Item Details *</mat-label>
+                        <input matInput formControlName="itemDetails" placeholder="e.g., Gold Ring Set">
+                        <mat-error *ngIf="createOrderForm.get('itemDetails')?.hasError('required')">
+                          Item details are required
+                        </mat-error>
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Model Number</mat-label>
+                        <input matInput formControlName="modelNumber" placeholder="Enter model number">
+                      </mat-form-field>
+                    </div>
+
+                    <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Gross Weight (g)</mat-label>
+                        <input matInput type="number" formControlName="grossWeight" step="0.01">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Net Weight (g)</mat-label>
+                        <input matInput type="number" formControlName="netWeight" step="0.01">
+                      </mat-form-field>
+                    </div>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Description of Work</mat-label>
+                      <textarea matInput formControlName="descriptionOfWork" rows="3" placeholder="Describe the work to be done..."></textarea>
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Stones Section -->
+                  <div class="form-section">
+                    <div class="section-header">
+                      <h3>
+                        <mat-icon>diamond</mat-icon>
+                        Stones Information
+                      </h3>
+                      <button mat-raised-button color="primary" type="button" (click)="addStoneRow()">
+                        <mat-icon>add</mat-icon>
+                        Add Stone
+                      </button>
+                    </div>
+
+                    <div formArrayName="stones" class="stones-container">
+                      <mat-card *ngFor="let stone of stones.controls; let i = index" [formGroupName]="i" class="stone-card">
+                        <mat-card-content>
+                          <div class="stone-form-row">
+                            <mat-form-field appearance="outline">
+                              <mat-label>Type *</mat-label>
+                              <input matInput formControlName="type" placeholder="e.g., Ruby, CZ">
+                            </mat-form-field>
+
+                            <mat-form-field appearance="outline">
+                              <mat-label>Pieces *</mat-label>
+                              <input matInput type="number" formControlName="pieces" min="1">
+                            </mat-form-field>
+
+                            <mat-form-field appearance="outline">
+                              <mat-label>Weight (g) *</mat-label>
+                              <input matInput type="number" formControlName="weightGrams" step="0.001" min="0.001" 
+                                     (input)="onWeightGramsChange(i, $event)"
+                                     [value]="formatWeight(stone.get('weightGrams')?.value)">
+                              <mat-hint>Auto-converts to carats (×5)</mat-hint>
+                            </mat-form-field>
+
+                            <mat-form-field appearance="outline">
+                              <mat-label>Weight (ct) *</mat-label>
+                              <input matInput type="number" formControlName="weightCarats" step="0.001" min="0.001"
+                                     (input)="onWeightCaratsChange(i, $event)"
+                                     [value]="formatWeight(stone.get('weightCarats')?.value)">
+                              <mat-hint>Auto-converts to grams (÷5)</mat-hint>
+                            </mat-form-field>
+
+                            <button mat-icon-button color="warn" type="button" (click)="removeStoneRow(i)" [disabled]="stones.length === 1">
+                              <mat-icon>delete</mat-icon>
+                            </button>
+                          </div>
+                        </mat-card-content>
+                      </mat-card>
+                    </div>
+                  </div>
+
+                  <!-- Worker Assignment Section -->
+                  <div class="form-section">
+                    <div class="section-header">
+                      <h3>
+                        <mat-icon>group</mat-icon>
+                        Assign Workers (Optional)
+                      </h3>
+                      <button mat-raised-button color="primary" type="button" (click)="addWorkerAssignment()">
+                        <mat-icon>add</mat-icon>
+                        Add Assignment
+                      </button>
+                    </div>
+
+                    <div formArrayName="assignedWorkers" class="workers-container">
+                      <mat-card *ngFor="let worker of assignedWorkers.controls; let i = index" [formGroupName]="i" class="worker-card">
+                        <mat-card-content>
+                          <div class="worker-form-row">
+                            <mat-form-field appearance="outline">
+                              <mat-label>Stage</mat-label>
+                              <mat-select formControlName="stageType">
+                                <mat-option *ngFor="let stage of stageTypes" [value]="stage">
+                                  {{ stage | titlecase }}
+                                </mat-option>
+                              </mat-select>
+                            </mat-form-field>
+
+                            <mat-form-field appearance="outline">
+                              <mat-label>Worker</mat-label>
+                              <mat-select formControlName="workerId" (selectionChange)="onWorkerChange(i)">
+                                <mat-option *ngFor="let w of getWorkersByStage(worker.get('stageType')?.value)" [value]="w.id">
+                                  {{ w.name }}
+                                </mat-option>
+                              </mat-select>
+                            </mat-form-field>
+
+                            <button mat-icon-button color="warn" type="button" (click)="removeWorkerAssignment(i)">
+                              <mat-icon>delete</mat-icon>
+                            </button>
+                          </div>
+                        </mat-card-content>
+                      </mat-card>
+                    </div>
+                  </div>
+
+                  <!-- Submit Button -->
+                  <div class="form-actions">
+                    <button mat-raised-button color="primary" type="submit" [disabled]="submitting || createOrderForm.invalid" class="submit-button">
+                      <mat-spinner *ngIf="submitting" diameter="20"></mat-spinner>
+                      <mat-icon *ngIf="!submitting">save</mat-icon>
+                      {{ submitting ? 'Creating...' : 'Create Work Order' }}
+                    </button>
+                  </div>
+                </form>
+              </mat-card-content>
+            </mat-card>
+
+            <!-- Work Orders List -->
+            <mat-card class="orders-list-card">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-icon>list_alt</mat-icon>
+                  Work Orders
+                </mat-card-title>
+              </mat-card-header>
+              
+              <mat-card-content>
+                <div *ngIf="loading" class="loading-container">
+                  <mat-spinner></mat-spinner>
+                </div>
+                
+                <div *ngIf="!loading && workOrders.length === 0" class="empty-state">
+                  <mat-icon>inbox</mat-icon>
+                  <p>No work orders found</p>
+                </div>
+
+                <div *ngIf="!loading && workOrders.length > 0" class="orders-list">
+                  <mat-card *ngFor="let order of workOrders" class="order-item">
+                    <mat-card-header>
+                      <mat-card-title>{{ order.workOrderNumber }}</mat-card-title>
+                      <mat-card-subtitle>{{ order.partyName }} • {{ formatDate(order.createdDate) }}</mat-card-subtitle>
+                    </mat-card-header>
+                    
+                    <mat-card-content>
+                      <p>{{ order.itemDetails }}</p>
+                      <div class="order-status">
+                        <mat-chip-set>
+                          <mat-chip [class]="getStatusBadgeClass(order.status)">
+                            {{ order.status | titlecase }}
+                          </mat-chip>
+                        </mat-chip-set>
+                        <div class="progress-info">
+                          <mat-progress-bar mode="determinate" [value]="calculateProgress(order)"></mat-progress-bar>
+                          <span>{{ calculateProgress(order) }}%</span>
+                        </div>
+                      </div>
+                    </mat-card-content>
+                    
+                    <mat-card-actions>
+                      <button mat-button color="primary" (click)="openAssignmentModal(order)">
+                        <mat-icon>person_add</mat-icon>
+                        Assign Workers
+                      </button>
+                    </mat-card-actions>
+                  </mat-card>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </ng-template>
+    </mat-tab>
+
+    <!-- Stage Tabs -->
+    <mat-tab *ngFor="let stage of stageTypes" [label]="stage | titlecase">
+      <ng-template matTabContent>
+        <div class="stage-content">
+          <mat-toolbar class="stage-toolbar">
+            <mat-icon>{{ stageIcons[stage] }}</mat-icon>
+            <span>{{ stage | titlecase }} Management</span>
+            <span class="toolbar-spacer"></span>
+            <mat-chip-set>
+              <mat-chip>{{ (stageWorkOrders[stage] || []).length }} Orders</mat-chip>
+            </mat-chip-set>
+          </mat-toolbar>
+
+          <div class="stage-orders-grid">
+            <mat-card *ngFor="let order of stageWorkOrders[stage]" class="stage-order-card">
+              <mat-card-header>
+                <mat-card-title>{{ order.workOrderNumber }}</mat-card-title>
+                <mat-card-subtitle>{{ order.partyName }}</mat-card-subtitle>
+              </mat-card-header>
+              
+              <mat-card-content>
+                <div class="order-details">
+                  <div class="detail-row">
+                    <span class="label">Product:</span>
+                    <span>{{ order.productType }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="label">Issue Weight:</span>
+                    <span>{{ order.issueWeight }}g</span>
+                  </div>
+                  <div class="detail-row" *ngIf="order.jamahWeight">
+                    <span class="label">Jamah Weight:</span>
+                    <span>{{ order.jamahWeight }}g</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="label">Status:</span>
+                    <mat-chip [class]="getStatusBadgeClass(order.status)">
+                      {{ order.status | titlecase }}
+                    </mat-chip>
+                  </div>
+                  <div class="detail-row" *ngIf="order.notes">
+                    <span class="label">Notes:</span>
+                    <span>{{ order.notes }}</span>
+                  </div>
+                </div>
+              </mat-card-content>
+              
+              <mat-card-actions>
+                <button mat-raised-button color="primary" (click)="openStageUpdateModal(order, stage)">
+                  <mat-icon>edit</mat-icon>
+                  Update Status
+                </button>
+              </mat-card-actions>
+            </mat-card>
+          </div>
+
+          <div *ngIf="!stageWorkOrders[stage] || stageWorkOrders[stage].length === 0" class="empty-stage">
+            <mat-icon>work_off</mat-icon>
+            <p>No orders assigned to {{ stage | titlecase }}</p>
+          </div>
+        </div>
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
 </div>
 
 <!-- Worker Assignment Modal -->
-<div class="modal fade" id="assignmentModal" tabindex="-1" aria-labelledby="assignmentModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="assignmentModalLabel">
-          <i class="fas fa-user-plus text-primary me-2"></i>
-          Assign Workers
-          <span *ngIf="selectedOrderForAssignment" class="text-muted">
-            - {{ selectedOrderForAssignment.workOrderNumber }}
-          </span>
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" (click)="closeAssignmentModal()"></button>
-      </div>
-      <div class="modal-body">
-        <form [formGroup]="assignmentForm" (ngSubmit)="submitAssignments()">
+<ng-container *ngIf="selectedOrderForAssignment">
+  <div class="modal-overlay" (click)="closeAssignmentModal()">
+    <mat-card class="assignment-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>person_add</mat-icon>
+          Assign Workers - {{ selectedOrderForAssignment.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <form [formGroup]="assignmentForm">
           <div formArrayName="assignments">
-            <div *ngFor="let assignment of assignments.controls; let i = index" [formGroupName]="i" class="assignment-row mb-3 p-3 border rounded">
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="form-label">Stage</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    formControlName="stageType"
-                    readonly
-                    [value]="assignment.get('stageType')?.value | titlecase"
-                  >
+            <mat-card *ngFor="let assignment of assignments.controls; let i = index" [formGroupName]="i" class="assignment-card">
+              <mat-card-content>
+                <div class="assignment-row">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Stage</mat-label>
+                    <input matInput formControlName="stageType" readonly [value]="assignment.get('stageType')?.value | titlecase">
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Assign Worker</mat-label>
+                    <mat-select formControlName="workerId" (selectionChange)="onAssignmentWorkerChange(i)">
+                      <mat-option value="">Select Worker</mat-option>
+                      <mat-option *ngFor="let worker of getWorkersByStage(assignment.get('stageType')?.value)" [value]="worker.id">
+                        {{ worker.name }} ({{ worker.email }})
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
                 </div>
-                <div class="col-md-8">
-                  <label class="form-label">Assign Worker</label>
-                  <select 
-                    class="form-select" 
-                    formControlName="workerId"
-                    (change)="onAssignmentWorkerChange(i)"
-                  >
-                    <option value="">Select Worker</option>
-                    <option 
-                      *ngFor="let worker of getWorkersByStage(assignment.get('stageType')?.value)" 
-                      [value]="worker.id"
-                    >
-                      {{ worker.name }} ({{ worker.email }})
-                    </option>
-                  </select>
-                </div>
-              </div>
-            </div>
+              </mat-card-content>
+            </mat-card>
           </div>
         </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" (click)="closeAssignmentModal()">
-          Cancel
-        </button>
-        <button 
-          type="button" 
-          class="btn btn-primary"
-          (click)="submitAssignments()"
-          [disabled]="assigning"
-          data-bs-dismiss="modal"
-        >
-          <span *ngIf="assigning" class="spinner-border spinner-border-sm me-2" role="status"></span>
-          <i *ngIf="!assigning" class="fas fa-save me-2"></i>
+      </mat-card-content>
+      
+      <mat-card-actions>
+        <button mat-button (click)="closeAssignmentModal()">Cancel</button>
+        <button mat-raised-button color="primary" (click)="submitAssignments()" [disabled]="assigning">
+          <mat-spinner *ngIf="assigning" diameter="20"></mat-spinner>
+          <mat-icon *ngIf="!assigning">save</mat-icon>
           {{ assigning ? 'Assigning...' : 'Save Assignments' }}
         </button>
-      </div>
-    </div>
+      </mat-card-actions>
+    </mat-card>
   </div>
-</div>
+</ng-container>
+
+<!-- Stage Update Modal -->
+<ng-container *ngIf="selectedStageOrder">
+  <div class="modal-overlay" (click)="closeStageUpdateModal()">
+    <mat-card class="stage-update-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>{{ stageIcons[selectedStage] }}</mat-icon>
+          Update {{ selectedStage | titlecase }} - {{ selectedStageOrder.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <form [formGroup]="stageUpdateForm">
+          <div class="update-form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="status">
+                <mat-option value="not-started">Not Started</mat-option>
+                <mat-option value="in-progress">In Progress</mat-option>
+                <mat-option value="completed">Completed</mat-option>
+                <mat-option value="on-hold">On Hold</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Jamah Weight (g)</mat-label>
+              <input matInput type="number" formControlName="jamahWeight" step="0.01">
+            </mat-form-field>
+          </div>
+
+          <div class="update-form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Sorting Issue</mat-label>
+              <input matInput type="number" formControlName="sortingIssue" step="0.01">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Sorting Jamah</mat-label>
+              <input matInput type="number" formControlName="sortingJamah" step="0.01">
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Notes</mat-label>
+            <textarea matInput formControlName="notes" rows="3" placeholder="Add notes..."></textarea>
+          </mat-form-field>
+
+          <mat-checkbox formControlName="approved">Approved</mat-checkbox>
+        </form>
+      </mat-card-content>
+      
+      <mat-card-actions>
+        <button mat-button (click)="closeStageUpdateModal()">Cancel</button>
+        <button mat-raised-button color="primary" (click)="submitStageUpdate()" [disabled]="updatingStage || stageUpdateForm.invalid">
+          <mat-spinner *ngIf="updatingStage" diameter="20"></mat-spinner>
+          <mat-icon *ngIf="!updatingStage">save</mat-icon>
+          {{ updatingStage ? 'Updating...' : 'Update Stage' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-container>
