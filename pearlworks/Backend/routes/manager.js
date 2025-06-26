@@ -1,12 +1,12 @@
 const express = require("express")
 const { body, validationResult } = require("express-validator")
 const db = require("../config/database")
-const { authenticateToken, authorizeRoles } = require("../middleware/auth")
+const { authenticateToken } = require("../middleware/auth")
 
 const router = express.Router()
 
 // Get all work orders for manager (with detailed information)
-router.get("/work-orders", authenticateToken,  async (req, res) => {
+router.get("/work-orders", authenticateToken, async (req, res) => {
   try {
     const { status, stage, workerId } = req.query
 
@@ -91,12 +91,13 @@ router.get("/work-orders", authenticateToken,  async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch work orders",
+      error: error.message,
     })
   }
 })
 
-// Get stage-specific orders for manager
-router.get("/stage-orders/:stage", authenticateToken, async (req, res) => {
+// Get stage-specific orders for manager - FIXED ENDPOINT
+router.get("/assigned-orders/:stage", authenticateToken, async (req, res) => {
   try {
     const stage = req.params.stage
 
@@ -119,12 +120,15 @@ router.get("/stage-orders/:stage", authenticateToken, async (req, res) => {
         wos.approved,
         wos.weight_difference,
         wa.assigned_date,
-        u.name as assigned_worker
+        u.name as assigned_worker,
+        GROUP_CONCAT(DISTINCT CONCAT(s.type, ':', s.pieces, ':', s.weight_grams, ':', s.weight_carats) SEPARATOR '|') as stones_info
       FROM work_orders wo
       JOIN worker_assignments wa ON wo.id = wa.work_order_id
       LEFT JOIN work_order_stages wos ON wo.id = wos.work_order_id AND wos.stage_name = ?
       LEFT JOIN users u ON wa.user_id = u.id
+      LEFT JOIN stones s ON wo.id = s.work_order_id
       WHERE wa.stage_type = ?
+      GROUP BY wo.id, wa.assigned_date, u.name
       ORDER BY wo.created_at DESC
     `
 
@@ -134,21 +138,22 @@ router.get("/stage-orders/:stage", authenticateToken, async (req, res) => {
       id: order.id.toString(),
       workOrderNumber: order.work_order_number,
       partyName: order.party_name,
-      productType: order.product_type,
+      productType: order.product_type || "N/A",
       issueWeight: order.issue_weight || 0,
-      jamahWeight: order.jamah_weight,
+      jamahWeight: order.jamah_weight || 0,
       assignedDate: order.assigned_date,
       status: order.status || "not-started",
       currentStage: stage,
-      notes: order.notes,
+      notes: order.notes || "",
       expectedCompletionDate: order.expected_completion_date,
       issueDate: order.issue_date,
       jamahDate: order.jamah_date,
-      sortingIssue: order.sorting_issue,
-      sortingJamah: order.sorting_jamah,
+      sortingIssue: order.sorting_issue || 0,
+      sortingJamah: order.sorting_jamah || 0,
       approved: order.approved || false,
-      weightDifference: order.weight_difference,
-      assignedWorker: order.assigned_worker,
+      weightDifference: order.weight_difference || 0,
+      assignedWorker: order.assigned_worker || "Unassigned",
+      stones: parseStonesInfo(order.stones_info) || [],
     }))
 
     res.json({
@@ -160,6 +165,7 @@ router.get("/stage-orders/:stage", authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Failed to fetch ${req.params.stage} orders`,
+      error: error.message,
     })
   }
 })
@@ -250,7 +256,7 @@ router.put(
         const insertParams = [
           workOrderId,
           stage,
-          req.user.name,
+          req.user?.name || "Manager",
           status,
           status === "in-progress" ? currentDate : null,
           status === "in-progress" ? issueWeight : null,
@@ -299,8 +305,8 @@ router.put(
           workOrderId,
           workOrder[0].work_order_number,
           `${stage} stage ${status}`,
-          req.user.name,
-          req.user.role,
+          req.user?.name || "Manager",
+          req.user?.role || "manager",
           `Manager updated ${stage} stage to ${status}${jamahWeight ? ` with jamah weight ${jamahWeight}g` : ""}`,
         ],
       )
@@ -317,6 +323,7 @@ router.put(
       res.status(500).json({
         success: false,
         message: "Failed to update stage status",
+        error: error.message,
       })
     } finally {
       connection.release()
@@ -351,8 +358,8 @@ router.get("/statistics", authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: {
-        overview: stats[0],
-        stages: stageStats,
+        overview: stats[0] || {},
+        stages: stageStats || [],
       },
     })
   } catch (error) {
@@ -360,6 +367,7 @@ router.get("/statistics", authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch statistics",
+      error: error.message,
     })
   }
 })
@@ -368,49 +376,64 @@ router.get("/statistics", authenticateToken, async (req, res) => {
 function parseStagesInfo(stagesInfo) {
   if (!stagesInfo) return []
 
-  return stagesInfo.split("|").map((stageStr) => {
-    const [stageName, status, karigar, issueWeight, jamahWeight] = stageStr.split(":")
-    return {
-      id: `${stageName}_stage`,
-      stageName,
-      status: status || "not-started",
-      karigar: karigar || null,
-      issueWeight: Number.parseFloat(issueWeight) || 0,
-      jamahWeight: Number.parseFloat(jamahWeight) || 0,
-      approved: false,
-    }
-  })
+  try {
+    return stagesInfo.split("|").map((stageStr) => {
+      const [stageName, status, karigar, issueWeight, jamahWeight] = stageStr.split(":")
+      return {
+        id: `${stageName}_stage`,
+        stageName,
+        status: status || "not-started",
+        karigar: karigar || null,
+        issueWeight: Number.parseFloat(issueWeight) || 0,
+        jamahWeight: Number.parseFloat(jamahWeight) || 0,
+        approved: false,
+      }
+    })
+  } catch (error) {
+    console.error("Error parsing stages info:", error)
+    return []
+  }
 }
 
 function parseStonesInfo(stonesInfo) {
   if (!stonesInfo) return []
 
-  return stonesInfo.split("|").map((stoneStr, index) => {
-    const [type, pieces, weightGrams, weightCarats, isReceived] = stoneStr.split(":")
-    return {
-      id: `stone_${index}`,
-      type,
-      pieces: Number.parseInt(pieces) || 0,
-      weightGrams: Number.parseFloat(weightGrams) || 0,
-      weightCarats: Number.parseFloat(weightCarats) || 0,
-      isReceived: isReceived === "1",
-      isReturned: false,
-    }
-  })
+  try {
+    return stonesInfo.split("|").map((stoneStr, index) => {
+      const [type, pieces, weightGrams, weightCarats, isReceived] = stoneStr.split(":")
+      return {
+        id: `stone_${index}`,
+        type: type || "Unknown",
+        pieces: Number.parseInt(pieces) || 0,
+        weightGrams: Number.parseFloat(weightGrams) || 0,
+        weightCarats: Number.parseFloat(weightCarats) || 0,
+        isReceived: isReceived === "1",
+        isReturned: false,
+      }
+    })
+  } catch (error) {
+    console.error("Error parsing stones info:", error)
+    return []
+  }
 }
 
 function parseAssignmentsInfo(assignmentsInfo) {
   if (!assignmentsInfo) return []
 
-  return assignmentsInfo.split("|").map((assignmentStr) => {
-    const [stageType, workerId, workerName, assignedDate] = assignmentStr.split(":")
-    return {
-      stageType,
-      workerId,
-      workerName,
-      assignedDate: new Date(assignedDate),
-    }
-  })
+  try {
+    return assignmentsInfo.split("|").map((assignmentStr) => {
+      const [stageType, workerId, workerName, assignedDate] = assignmentStr.split(":")
+      return {
+        stageType: stageType || "unknown",
+        workerId: workerId || "",
+        workerName: workerName || "Unassigned",
+        assignedDate: assignedDate ? new Date(assignedDate) : new Date(),
+      }
+    })
+  } catch (error) {
+    console.error("Error parsing assignments info:", error)
+    return []
+  }
 }
 
 module.exports = router

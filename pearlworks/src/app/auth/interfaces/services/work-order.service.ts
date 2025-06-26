@@ -80,4 +80,13 @@ export class WorkOrderService {
   getAllWorkers(): Observable<Worker[]> {
     return this.apiService.getAllWorkers().pipe(map((response) => response.data || []))
   }
+
+    // Get next work order number
+  getNextWorkOrderNumber(): Observable<{ workOrderNumber: string }> {
+    return this.apiService.getNextWorkOrderNumber()
+  }
+
+   getWorkOrderDetails(workOrderId: string): Observable<{ success: boolean; data: any }> {
+    return this.apiService.getWorkOrderDetails(workOrderId)
+  }
 }

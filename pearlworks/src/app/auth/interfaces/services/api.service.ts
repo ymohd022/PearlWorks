@@ -19,6 +19,22 @@ export class ApiService {
     })
   }
 
+    getData(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/data`, { headers: this.getHeaders() })
+  }
+
+  postData(data: any): Observable<any> {
+    return this.http.post(`${this.apiUrl}/data`, data, { headers: this.getHeaders() })
+  }
+
+  updateData(id: string, data: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/data/${id}`, data, { headers: this.getHeaders() })
+  }
+
+  deleteData(id: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/data/${id}`, { headers: this.getHeaders() })
+  }
+
   // Auth endpoints
   login(credentials: { email: string; password: string }): Observable<any> {
     return this.http.post(`${this.apiUrl}/auth/login`, credentials)
@@ -26,6 +42,10 @@ export class ApiService {
 
   logout(): Observable<any> {
     return this.http.post(`${this.apiUrl}/auth/logout`, {}, { headers: this.getHeaders() })
+  }
+
+  getWorkOrder(workOrderId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/work-orders/${workOrderId}`, { headers: this.getHeaders() })
   }
 
   // Work Orders endpoints
@@ -36,10 +56,32 @@ export class ApiService {
     })
   }
 
+// FIXED: Create work order with image upload support
   createWorkOrder(workOrder: any): Observable<any> {
-    return this.http.post(`${this.apiUrl}/work-orders`, workOrder, {
-      headers: this.getHeaders(),
+    const formData = new FormData()
+
+    // Add basic work order data
+    Object.keys(workOrder).forEach((key) => {
+      if (key === "images" && workOrder[key]) {
+        // Handle file uploads
+        for (let i = 0; i < workOrder[key].length; i++) {
+          formData.append("images", workOrder[key][i])
+        }
+      } else if (key === "stones" || key === "assignedWorkers") {
+        // Handle arrays as JSON strings
+        formData.append(key, JSON.stringify(workOrder[key] || []))
+      } else if (workOrder[key] !== null && workOrder[key] !== undefined) {
+        formData.append(key, workOrder[key])
+      }
     })
+
+    // Don't set Content-Type header - let browser set it with boundary for FormData
+    const token = localStorage.getItem("auth_token")
+    const headers = new HttpHeaders({
+      Authorization: token ? `Bearer ${token}` : "",
+    })
+
+    return this.http.post(`${this.apiUrl}/work-orders`, formData, { headers })
   }
 
   assignWorkers(workOrderId: string, assignments: any[]): Observable<any> {
@@ -54,6 +96,19 @@ export class ApiService {
 
   getActivityLogs(): Observable<any> {
     return this.http.get(`${this.apiUrl}/work-orders/activity-logs`, {
+      headers: this.getHeaders(),
+    })
+  }
+
+    // Get next work order number
+  getNextWorkOrderNumber(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/work-orders/next-number`, {
+      headers: this.getHeaders(),
+    })
+  }
+
+  getWorkOrderDetails(workOrderId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/work-orders/${workOrderId}/details`, {
       headers: this.getHeaders(),
     })
   }
@@ -155,11 +210,41 @@ export class ApiService {
     })
   }
 
-  updateStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
+ updateStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
     const stage = updateRequest.stage
-    return this.http.put(`${this.apiUrl}/${stage}/update-status/${workOrderId}`, updateRequest, {
-      headers: this.getHeaders(),
-    })
+
+    // Check if there are images to upload
+    if (updateRequest.updateImages && updateRequest.updateImages.length > 0) {
+      const formData = new FormData()
+
+      // Add all form fields
+      Object.keys(updateRequest).forEach((key) => {
+        if (key === "updateImages") {
+          // Handle file uploads
+          for (let i = 0; i < updateRequest[key].length; i++) {
+            formData.append("updateImages", updateRequest[key][i])
+          }
+        } else if (key === "addedStones" || key === "receivedStones" || key === "returnedStones") {
+          // Handle arrays as JSON strings
+          formData.append(key, JSON.stringify(updateRequest[key] || []))
+        } else if (updateRequest[key] !== null && updateRequest[key] !== undefined) {
+          formData.append(key, updateRequest[key])
+        }
+      })
+
+      // Don't set Content-Type header for FormData
+      const token = localStorage.getItem("auth_token")
+      const headers = new HttpHeaders({
+        Authorization: token ? `Bearer ${token}` : "",
+      })
+
+      return this.http.put(`${this.apiUrl}/${stage}/update-status/${workOrderId}`, formData, { headers })
+    } else {
+      // Regular JSON request if no images
+      return this.http.put(`${this.apiUrl}/${stage}/update-status/${workOrderId}`, updateRequest, {
+        headers: this.getHeaders(),
+      })
+    }
   }
 
   // Statistics endpoints

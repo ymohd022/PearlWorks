@@ -48,8 +48,18 @@
                   
                   <!-- Basic Information -->
                   <div class="form-section">
-                    <h3>Basic Information</h3>
+                    <h3>
+                      <mat-icon>info</mat-icon>
+                      Basic Information
+                    </h3>
+                    
                     <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Work Order Number</mat-label>
+                        <input matInput formControlName="workOrderNumber" readonly>
+                        <mat-hint>Auto-generated</mat-hint>
+                      </mat-form-field>
+
                       <mat-form-field appearance="outline">
                         <mat-label>Party Name *</mat-label>
                         <input matInput formControlName="partyName" placeholder="Enter party name">
@@ -60,26 +70,19 @@
                           Minimum 2 characters required
                         </mat-error>
                       </mat-form-field>
+                    </div>
 
+                    <div class="form-row">
                       <mat-form-field appearance="outline">
                         <mat-label>P.O. Number</mat-label>
                         <input matInput formControlName="poNumber" placeholder="Enter PO number">
                       </mat-form-field>
-                    </div>
 
-                    <div class="form-row">
                       <mat-form-field appearance="outline">
                         <mat-label>P.O. Date</mat-label>
                         <input matInput [matDatepicker]="poDatePicker" formControlName="poDate">
                         <mat-datepicker-toggle matSuffix [for]="poDatePicker"></mat-datepicker-toggle>
                         <mat-datepicker #poDatePicker></mat-datepicker>
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Expected Completion</mat-label>
-                        <input matInput [matDatepicker]="completionDatePicker" formControlName="expectedCompletionDate">
-                        <mat-datepicker-toggle matSuffix [for]="completionDatePicker"></mat-datepicker-toggle>
-                        <mat-datepicker #completionDatePicker></mat-datepicker>
                       </mat-form-field>
                     </div>
 
@@ -93,27 +96,53 @@
                       </mat-form-field>
 
                       <mat-form-field appearance="outline">
-                        <mat-label>Model Number</mat-label>
-                        <input matInput formControlName="modelNumber" placeholder="Enter model number">
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Gross Weight (g)</mat-label>
-                        <input matInput type="number" formControlName="grossWeight" step="0.01">
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Net Weight (g)</mat-label>
-                        <input matInput type="number" formControlName="netWeight" step="0.01">
+                        <mat-label>Expected Completion</mat-label>
+                        <input matInput [matDatepicker]="completionDatePicker" formControlName="expectedCompletionDate">
+                        <mat-datepicker-toggle matSuffix [for]="completionDatePicker"></mat-datepicker-toggle>
+                        <mat-datepicker #completionDatePicker></mat-datepicker>
                       </mat-form-field>
                     </div>
 
                     <mat-form-field appearance="outline" class="full-width">
                       <mat-label>Description of Work</mat-label>
-                      <textarea matInput formControlName="descriptionOfWork" rows="3" placeholder="Describe the work to be done..."></textarea>
+                      <textarea matInput formControlName="descriptionOfWork" rows="3" 
+                                placeholder="Describe the work to be done..."></textarea>
                     </mat-form-field>
+                  </div>
+
+                  <!-- Image Upload Section -->
+                  <div class="form-section">
+                    <div class="section-header">
+                      <h3>
+                        <mat-icon>photo_camera</mat-icon>
+                        Images
+                      </h3>
+                      <div class="image-upload-buttons">
+                        <input type="file" #fileInput multiple accept="image/*" 
+                               (change)="onFileSelected($event)" style="display: none;">
+                        <button mat-raised-button color="primary" type="button" 
+                                (click)="fileInput.click()">
+                          <mat-icon>attach_file</mat-icon>
+                          Attach Images
+                        </button>
+                        <button mat-raised-button color="accent" type="button" 
+                                (click)="onCameraCapture()">
+                          <mat-icon>camera_alt</mat-icon>
+                          Camera
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Image Previews -->
+                    <div class="image-previews" *ngIf="imagePreviewUrls.length > 0">
+                      <div *ngFor="let url of imagePreviewUrls; let i = index" class="image-preview">
+                        <img [src]="url" alt="Preview" class="preview-image">
+                        <button mat-icon-button color="warn" type="button" 
+                                (click)="removeImage(i)" class="remove-image-btn">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <!-- Stones Section -->
@@ -159,7 +188,8 @@
                               <mat-hint>Auto-converts to grams (÷5)</mat-hint>
                             </mat-form-field>
 
-                            <button mat-icon-button color="warn" type="button" (click)="removeStoneRow(i)" [disabled]="stones.length === 1">
+                            <button mat-icon-button color="warn" type="button" (click)="removeStoneRow(i)" 
+                                    [disabled]="stones.length === 1">
                               <mat-icon>delete</mat-icon>
                             </button>
                           </div>
@@ -186,7 +216,7 @@
                         <mat-card-content>
                           <div class="worker-form-row">
                             <mat-form-field appearance="outline">
-                              <mat-label>Stage</mat-label>
+                              <mat-label>Stage *</mat-label>
                               <mat-select formControlName="stageType">
                                 <mat-option *ngFor="let stage of stageTypes" [value]="stage">
                                   {{ stage | titlecase }}
@@ -195,7 +225,7 @@
                             </mat-form-field>
 
                             <mat-form-field appearance="outline">
-                              <mat-label>Worker</mat-label>
+                              <mat-label>Worker *</mat-label>
                               <mat-select formControlName="workerId" (selectionChange)="onWorkerChange(i)">
                                 <mat-option *ngFor="let w of getWorkersByStage(worker.get('stageType')?.value)" [value]="w.id">
                                   {{ w.name }}
@@ -214,7 +244,8 @@
 
                   <!-- Submit Button -->
                   <div class="form-actions">
-                    <button mat-raised-button color="primary" type="submit" [disabled]="submitting || createOrderForm.invalid" class="submit-button">
+                    <button mat-raised-button color="primary" type="submit" 
+                            [disabled]="submitting || createOrderForm.invalid" class="submit-button">
                       <mat-spinner *ngIf="submitting" diameter="20"></mat-spinner>
                       <mat-icon *ngIf="!submitting">save</mat-icon>
                       {{ submitting ? 'Creating...' : 'Create Work Order' }}
@@ -251,7 +282,9 @@
                     </mat-card-header>
                     
                     <mat-card-content>
-                      <p>{{ order.itemDetails }}</p>
+                      <p><strong>Item:</strong> {{ order.itemDetails }}</p>
+                      <p><strong>Current Stage:</strong> {{ getCurrentStage(order) | titlecase }}</p>
+                      
                       <div class="order-status">
                         <mat-chip-set>
                           <mat-chip [class]="getStatusBadgeClass(order.status)">
@@ -328,6 +361,10 @@
               </mat-card-content>
               
               <mat-card-actions>
+                <button mat-button color="accent" (click)="openDetailModal(order)">
+                  <mat-icon>visibility</mat-icon>
+                  View Detail
+                </button>
                 <button mat-raised-button color="primary" (click)="openStageUpdateModal(order, stage)">
                   <mat-icon>edit</mat-icon>
                   Update Status
@@ -360,19 +397,22 @@
       <mat-card-content>
         <form [formGroup]="assignmentForm">
           <div formArrayName="assignments">
-            <mat-card *ngFor="let assignment of assignments.controls; let i = index" [formGroupName]="i" class="assignment-card">
+            <mat-card *ngFor="let assignment of assignments.controls; let i = index" 
+                      [formGroupName]="i" class="assignment-card">
               <mat-card-content>
                 <div class="assignment-row">
                   <mat-form-field appearance="outline">
                     <mat-label>Stage</mat-label>
-                    <input matInput formControlName="stageType" readonly [value]="assignment.get('stageType')?.value | titlecase">
+                    <input matInput formControlName="stageType" readonly 
+                           [value]="assignment.get('stageType')?.value | titlecase">
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
                     <mat-label>Assign Worker</mat-label>
                     <mat-select formControlName="workerId" (selectionChange)="onAssignmentWorkerChange(i)">
                       <mat-option value="">Select Worker</mat-option>
-                      <mat-option *ngFor="let worker of getWorkersByStage(assignment.get('stageType')?.value)" [value]="worker.id">
+                      <mat-option *ngFor="let worker of getWorkersByStage(assignment.get('stageType')?.value)" 
+                                  [value]="worker.id">
                         {{ worker.name }} ({{ worker.email }})
                       </mat-option>
                     </mat-select>
@@ -396,10 +436,10 @@
   </div>
 </ng-container>
 
-<!-- Stage Update Modal -->
+<!-- Enhanced Setting Stage Update Modal -->
 <ng-container *ngIf="selectedStageOrder">
   <div class="modal-overlay" (click)="closeStageUpdateModal()">
-    <mat-card class="stage-update-modal" (click)="$event.stopPropagation()">
+    <mat-card class="setting-update-modal" (click)="$event.stopPropagation()">
       <mat-card-header>
         <mat-card-title>
           <mat-icon>{{ stageIcons[selectedStage] }}</mat-icon>
@@ -409,50 +449,403 @@
       
       <mat-card-content>
         <form [formGroup]="stageUpdateForm">
-          <div class="update-form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Status</mat-label>
-              <mat-select formControlName="status">
-                <mat-option value="not-started">Not Started</mat-option>
-                <mat-option value="in-progress">In Progress</mat-option>
-                <mat-option value="completed">Completed</mat-option>
-                <mat-option value="on-hold">On Hold</mat-option>
-              </mat-select>
-            </mat-form-field>
+          
+          <!-- Basic Information Section -->
+          <div class="setting-section">
+            <h4>
+              <mat-icon>info</mat-icon>
+              Basic Information
+            </h4>
+            
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Status *</mat-label>
+                <mat-select formControlName="status">
+                  <mat-option value="not-started">Not Started</mat-option>
+                  <mat-option value="in-progress">In Progress</mat-option>
+                  <mat-option value="completed">Completed</mat-option>
+                  <mat-option value="on-hold">On Hold</mat-option>
+                </mat-select>
+              </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Jamah Weight (g)</mat-label>
-              <input matInput type="number" formControlName="jamahWeight" step="0.01">
-            </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Weight (g)</mat-label>
+                <input matInput type="number" formControlName="jamahWeight" step="0.001" 
+                       placeholder="25.000">
+              </mat-form-field>
+            </div>
+
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Issue Date</mat-label>
+                <input matInput [matDatepicker]="issueDatePicker" formControlName="issueDate">
+                <mat-datepicker-toggle matSuffix [for]="issueDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #issueDatePicker></mat-datepicker>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Date</mat-label>
+                <input matInput [matDatepicker]="jamahDatePicker" formControlName="jamahDate">
+                <mat-datepicker-toggle matSuffix [for]="jamahDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #jamahDatePicker></mat-datepicker>
+              </mat-form-field>
+            </div>
+
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Sorting Issue</mat-label>
+                <input matInput type="number" formControlName="sortingIssue" step="0.001">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Sorting Jamah</mat-label>
+                <input matInput type="number" formControlName="sortingJamah" step="0.001">
+              </mat-form-field>
+            </div>
+
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Weight Difference (Auto-calculated)</mat-label>
+                <input matInput type="number" formControlName="weightDifference" readonly
+                       class="difference-field">
+                <mat-hint>Automatically calculated from received - returned stones</mat-hint>
+              </mat-form-field>
+            </div>
           </div>
 
-          <div class="update-form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Sorting Issue</mat-label>
-              <input matInput type="number" formControlName="sortingIssue" step="0.01">
-            </mat-form-field>
+          <!-- Stone Management Section for Framing -->
+          <div class="setting-section" *ngIf="selectedStage === 'framing'">
+            <div class="section-header">
+              <h4>
+                <mat-icon>add_circle</mat-icon>
+                Add Stones
+              </h4>
+              <button mat-raised-button color="primary" type="button" (click)="addStoneToUpdate()">
+                <mat-icon>add</mat-icon>
+                Add Stone
+              </button>
+            </div>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Sorting Jamah</mat-label>
-              <input matInput type="number" formControlName="sortingJamah" step="0.01">
-            </mat-form-field>
+            <div formArrayName="addedStones" class="stones-table">
+              <div class="stones-header">
+                <span>Type of Stone</span>
+                <span>Pieces</span>
+                <span>Wt/Grams</span>
+                <span>Wt/Carat</span>
+                <span>Actions</span>
+              </div>
+              
+              <div *ngFor="let stone of addedStones.controls; let i = index" 
+                   [formGroupName]="i" class="stone-row">
+                <mat-form-field appearance="outline">
+                  <input matInput formControlName="type" placeholder="Ruby, CZ, etc.">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="pieces" min="1">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightGrams" step="0.001" 
+                         (input)="onUpdateWeightGramsChange(i, $event)"
+                         [value]="formatWeight(stone.get('weightGrams')?.value)">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightCarats" step="0.001"
+                         (input)="onUpdateWeightCaratsChange(i, $event)"
+                         [value]="formatWeight(stone.get('weightCarats')?.value)">
+                </mat-form-field>
+
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeAddedStone(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="stone-balance-section">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Total Stone Balance (Auto-calculated)</mat-label>
+                <input matInput type="number" formControlName="stoneBalance" readonly
+                       class="balance-field">
+                <mat-hint>Original stones + Added stones</mat-hint>
+              </mat-form-field>
+            </div>
           </div>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Notes</mat-label>
-            <textarea matInput formControlName="notes" rows="3" placeholder="Add notes..."></textarea>
-          </mat-form-field>
+          <!-- Image Upload Section for Updates -->
+          <div class="setting-section">
+            <div class="section-header">
+              <h4>
+                <mat-icon>camera_alt</mat-icon>
+                Attach Images
+              </h4>
+              <div class="update-image-upload-buttons">
+                <input type="file" #updateFileInput multiple accept="image/*" 
+                       (change)="onUpdateFileSelected($event)" style="display: none;">
+                <button mat-raised-button color="accent" type="button" 
+                        (click)="updateFileInput.click()">
+                  <mat-icon>attach_file</mat-icon>
+                  Attach Images
+                </button>
+              </div>
+            </div>
 
-          <mat-checkbox formControlName="approved">Approved</mat-checkbox>
+            <!-- Update Image Previews -->
+            <div class="update-image-previews" *ngIf="updateImagePreviewUrls.length > 0">
+              <div *ngFor="let url of updateImagePreviewUrls; let i = index" class="update-image-preview">
+                <img [src]="url" alt="Update Preview" class="update-preview-image">
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeUpdateImage(i)" class="remove-update-image-btn">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="image-upload-hint" *ngIf="updateImagePreviewUrls.length === 0">
+              <mat-icon>cloud_upload</mat-icon>
+              <p>Attach images showing completed work (optional)</p>
+            </div>
+          </div>
+
+          <!-- Received Stones Section -->
+          <div class="setting-section" *ngIf="selectedStage === 'setting'">
+            <div class="section-header">
+              <h4>
+                <mat-icon>diamond</mat-icon>
+                Received Stones
+              </h4>
+              <button mat-raised-button color="primary" type="button" (click)="addReceivedStone()">
+                <mat-icon>add</mat-icon>
+                Add Stone
+              </button>
+            </div>
+
+            <div formArrayName="receivedStones" class="stones-table">
+              <div class="stones-header">
+                <span>Type of Stone</span>
+                <span>Pieces</span>
+                <span>Wt/Grams</span>
+                <span>Wt/Carat</span>
+                <span>Actions</span>
+              </div>
+              
+              <div *ngFor="let stone of receivedStones.controls; let i = index" 
+                   [formGroupName]="i" class="stone-row">
+                <mat-form-field appearance="outline">
+                  <input matInput formControlName="type" placeholder="Ruby, CZ, etc.">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="pieces" min="1">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightGrams" step="0.001" 
+                         (input)="onSettingWeightGramsChange(i, $event, true)"
+                         [value]="formatWeight(stone.get('weightGrams')?.value)">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightCarats" step="0.001"
+                         (input)="onSettingWeightCaratsChange(i, $event, true)"
+                         [value]="formatWeight(stone.get('weightCarats')?.value)">
+                </mat-form-field>
+
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeReceivedStone(i)" 
+                        [disabled]="receivedStones.length === 1">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Returned Stones Section -->
+          <div class="setting-section" *ngIf="selectedStage === 'setting'">
+            <div class="section-header">
+              <h4>
+                <mat-icon>keyboard_return</mat-icon>
+                Returned Stones
+              </h4>
+              <button mat-raised-button color="accent" type="button" (click)="addReturnedStone()">
+                <mat-icon>add</mat-icon>
+                Add Stone
+              </button>
+            </div>
+
+            <div formArrayName="returnedStones" class="stones-table">
+              <div class="stones-header">
+                <span>Type</span>
+                <span>Pcs</span>
+                <span>Wt/Gms</span>
+                <span>Wt/Carat</span>
+                <span>Actions</span>
+              </div>
+              
+              <div *ngFor="let stone of returnedStones.controls; let i = index" 
+                   [formGroupName]="i" class="stone-row">
+                <mat-form-field appearance="outline">
+                  <input matInput formControlName="type" placeholder="Ruby, CZ, etc.">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="pieces" min="1">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightGrams" step="0.001"
+                         (input)="onSettingWeightGramsChange(i, $event, false)"
+                         [value]="formatWeight(stone.get('weightGrams')?.value)">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <input matInput type="number" formControlName="weightCarats" step="0.001"
+                         (input)="onSettingWeightCaratsChange(i, $event, false)"
+                         [value]="formatWeight(stone.get('weightCarats')?.value)">
+                </mat-form-field>
+
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeReturnedStone(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes and Approval Section -->
+          <div class="setting-section">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Notes</mat-label>
+              <textarea matInput formControlName="notes" rows="3" 
+                        placeholder="Add any additional notes..."></textarea>
+            </mat-form-field>
+
+            <div class="approval-section">
+              <mat-checkbox formControlName="approved" color="primary">
+                <span class="approval-text">
+                  <mat-icon>verified</mat-icon>
+                  Approved
+                </span>
+              </mat-checkbox>
+            </div>
+          </div>
+
         </form>
       </mat-card-content>
       
-      <mat-card-actions>
-        <button mat-button (click)="closeStageUpdateModal()">Cancel</button>
-        <button mat-raised-button color="primary" (click)="submitStageUpdate()" [disabled]="updatingStage || stageUpdateForm.invalid">
+      <mat-card-actions class="modal-actions">
+        <button mat-button (click)="closeStageUpdateModal()" class="cancel-btn">
+          <mat-icon>cancel</mat-icon>
+          Cancel
+        </button>
+        <button mat-raised-button color="primary" (click)="submitStageUpdate()" 
+                [disabled]="updatingStage || stageUpdateForm.invalid" class="update-btn">
           <mat-spinner *ngIf="updatingStage" diameter="20"></mat-spinner>
           <mat-icon *ngIf="!updatingStage">save</mat-icon>
           {{ updatingStage ? 'Updating...' : 'Update Stage' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-container>
+
+<!-- View Detail Modal -->
+<ng-container *ngIf="selectedOrderForDetail">
+  <div class="modal-overlay" (click)="closeDetailModal()">
+    <mat-card class="detail-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>info</mat-icon>
+          Work Order Details - {{ selectedOrderForDetail.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <!-- Basic Information -->
+        <div class="detail-section">
+          <h4>
+            <mat-icon>info</mat-icon>
+            Basic Information
+          </h4>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Party Name:</span>
+              <span class="detail-value">{{ selectedOrderForDetail.partyName }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Product Type:</span>
+              <span class="detail-value">{{ selectedOrderForDetail.productType }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Assignment Date:</span>
+              <span class="detail-value">{{ formatDateDetail(selectedOrderForDetail.assignedDate) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Issue Weight:</span>
+              <span class="detail-value">{{ selectedOrderForDetail.issueWeight }}g</span>
+            </div>
+            <div class="detail-item" *ngIf="selectedOrderForDetail.jamahWeight">
+              <span class="detail-label">Jamah Weight:</span>
+              <span class="detail-value">{{ selectedOrderForDetail.jamahWeight }}g</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Status:</span>
+              <mat-chip [class]="getStatusBadgeClass(selectedOrderForDetail.status)">
+                {{ selectedOrderForDetail.status | titlecase }}
+              </mat-chip>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stones Information -->
+        <div class="detail-section" *ngIf="selectedOrderForDetail.stones && selectedOrderForDetail.stones.length > 0">
+          <h4>
+            <mat-icon>diamond</mat-icon>
+            Stones Information
+          </h4>
+          <div class="stones-detail-table">
+            <div class="stones-detail-header">
+              <span>Type</span>
+              <span>Pieces</span>
+              <span>Weight (g)</span>
+              <span>Weight (ct)</span>
+            </div>
+            <div *ngFor="let stone of selectedOrderForDetail.stones" class="stones-detail-row">
+              <span>{{ stone.type }}</span>
+              <span>{{ stone.pieces }}</span>
+              <span>{{ formatWeight(stone.weightGrams) }}</span>
+              <span>{{ formatWeight(stone.weightCarats) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Images -->
+        <div class="detail-section" *ngIf="detailImages.length > 0">
+          <h4>
+            <mat-icon>photo_library</mat-icon>
+            Work Order Images
+          </h4>
+          <div class="detail-images-grid">
+            <div *ngFor="let image of detailImages" class="detail-image-item">
+              <img [src]="image" alt="Work Order Image" class="detail-image">
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="detailImages.length === 0">
+          <div class="no-images">
+            <mat-icon>photo</mat-icon>
+            <p>No images attached to this work order</p>
+          </div>
+        </div>
+      </mat-card-content>
+      
+      <mat-card-actions>
+        <button mat-raised-button color="primary" (click)="closeDetailModal()">
+          <mat-icon>close</mat-icon>
+          Close
         </button>
       </mat-card-actions>
     </mat-card>

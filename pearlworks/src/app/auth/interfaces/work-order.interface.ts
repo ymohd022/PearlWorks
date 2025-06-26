@@ -63,19 +63,21 @@ export interface ActivityLog {
 }
 
 export interface CreateWorkOrderRequest {
+  workOrderNumber?: string
   partyName: string
   poNumber?: string
-  poDate?: Date
+  poDate?: string // Changed from Date to string
   itemDetails?: string
   modelNumber?: string
   descriptionOfWork?: string
-  expectedCompletionDate?: Date
+  expectedCompletionDate?: string // Changed from Date to string
+  images?: File[] // Add images property
   stones: Omit<Stone, "id" | "isReturned">[]
   assignedWorkers: Omit<AssignedWorker, "assignedDate">[]
 }
 
 export type WorkOrderStatus = "pending" | "in-progress" | "completed" | "dispatched" | "cancelled"
-export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold" | "dispatched";
+export type StageStatus = "not-started" | "in-progress" | "completed" | "on-hold" | "dispatched"
 export type StageType = "framing" | "setting" | "polish" | "repair" | "dispatch"
 
 export interface WorkOrderFilters {

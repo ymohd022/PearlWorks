@@ -10,6 +10,18 @@ export interface SettingWorkOrder extends AssignedWorkOrder {
   returnedStonesCount: number
   issueDate?: Date
   jamahDate?: Date
+  receivedStones: ReceivedStone[]
+}
+
+export interface ReceivedStone {
+  id?: string
+  workOrderId?: string
+  type: string
+  pieces: number
+  weightGrams: number
+  weightCarats: number
+  isReceived: boolean
+  createdAt?: Date
 }
 
 export interface Stone {
@@ -37,9 +49,13 @@ export interface ReturnedStone {
 
 export interface SettingUpdateRequest extends StageUpdateRequest {
   returnedStones?: ReturnedStone[]
+  receivedStones?: ReceivedStone[]
   sortingIssue?: number
   sortingJamah?: number
   approved?: boolean
+  weightDifference?: number
+  issueDate?: Date
+  jamahDate?: Date
 }
 
 export interface SettingStatistics {

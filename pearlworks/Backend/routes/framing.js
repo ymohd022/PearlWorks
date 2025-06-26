@@ -2,9 +2,25 @@ const express = require("express")
 const { body, validationResult } = require("express-validator")
 const db = require("../config/database")
 const { authenticateToken, authorizeRoles } = require("../middleware/auth")
-
 const router = express.Router()
 
+const fs = require("fs")
+const path = require("path")
+const multer = require("multer")
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "../uploads")
+    // Create the directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true })
+    cb(null, uploadPath)
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname))
+  },
+})
+const upload = multer({ storage: storage })
 // Get assigned work orders for framing
 router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "admin", "manager"), async (req, res) => {
   try {
@@ -81,159 +97,139 @@ router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "adm
 })
 
 // Update framing stage status
-router.put(
-  "/update-status/:workOrderId",
-  [
-    authenticateToken,
-    authorizeRoles("framing", "admin", "manager"),
-    body("status").isIn(["not-started", "in-progress", "completed", "on-hold"]),
-    body("jamahWeight").optional().isFloat({ min: 0.01 }),
-    body("sortingIssue").optional().isInt({ min: 0 }),
-    body("sortingJamah").optional().isInt({ min: 0 }),
-  ],
-  async (req, res) => {
-    const connection = await db.getConnection()
+router.put("/update-status/:workOrderId", authenticateToken, upload.array("updateImages", 5), async (req, res) => {
+  const connection = await db.getConnection()
 
-    try {
-      const errors = validationResult(req)
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation failed",
-          errors: errors.array(),
-        })
+  try {
+    await connection.beginTransaction()
+
+    const { workOrderId } = req.params
+    const { status, jamahWeight, sortingIssue, sortingJamah, notes, approved, addedStones } = req.body
+
+    // Handle uploaded images
+    let newImagePaths = []
+    if (req.files && req.files.length > 0) {
+      newImagePaths = req.files.map((file) => `/uploads/${file.filename}`)
+    }
+
+    // Get existing images
+    const [existingOrder] = await connection.execute("SELECT images FROM work_orders WHERE id = ?", [workOrderId])
+
+    let allImages = []
+    if (existingOrder.length > 0 && existingOrder[0].images) {
+      try {
+        allImages = JSON.parse(existingOrder[0].images)
+      } catch (e) {
+        console.error("Error parsing existing images:", e)
+      }
+    }
+
+    // Combine existing and new images
+    allImages = [...allImages, ...newImagePaths]
+
+    // Update work order with new status and images
+    await connection.execute(
+      `UPDATE work_orders SET 
+        status = ?, 
+        net_weight = ?, 
+        images = ?,
+        updated_at = NOW() 
+       WHERE id = ?`,
+      [status, jamahWeight || null, JSON.stringify(allImages), workOrderId],
+    )
+
+    // Insert or update framing stage record
+    await connection.execute(
+      `INSERT INTO work_order_stages (
+        work_order_id, stage_name, status, jamah_weight, sorting_issue, 
+        sorting_jamah, notes, approved, updated_at
+      ) VALUES (?, 'framing', ?, ?, ?, ?, ?, ?, NOW())
+      ON DUPLICATE KEY UPDATE
+        status = VALUES(status),
+        jamah_weight = VALUES(jamah_weight),
+        sorting_issue = VALUES(sorting_issue),
+        sorting_jamah = VALUES(sorting_jamah),
+        notes = VALUES(notes),
+        approved = VALUES(approved),
+        updated_at = NOW()`,
+      [workOrderId, status, jamahWeight || 0, sortingIssue || 0, sortingJamah || 0, notes || "", approved ? 1 : 0],
+    )
+
+    // Handle added stones if provided
+    if (addedStones) {
+      let parsedStones = []
+      try {
+        parsedStones = typeof addedStones === "string" ? JSON.parse(addedStones) : addedStones
+      } catch (e) {
+        console.error("Error parsing added stones:", e)
       }
 
-      await connection.beginTransaction()
-
-      const workOrderId = req.params.workOrderId
-      const { status, jamahWeight, notes, sortingIssue, sortingJamah, approved } = req.body
-
-      // Get work order details
-      const [workOrder] = await connection.execute("SELECT work_order_number FROM work_orders WHERE id = ?", [
-        workOrderId,
-      ])
-
-      if (workOrder.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "Work order not found",
-        })
-      }
-
-      // Check if framing stage exists
-      const [existingStage] = await connection.execute(
-        "SELECT id, issue_weight FROM work_order_stages WHERE work_order_id = ? AND stage_name = 'framing'",
-        [workOrderId],
-      )
-
-      const currentDate = new Date()
-      const stageData = {
-        status,
-        notes: notes || null,
-        updated_at: currentDate,
-      }
-
-      // Add completion-specific data
-      if (status === "completed") {
-        stageData.jamah_date = currentDate
-        stageData.jamah_weight = jamahWeight
-        stageData.sorting_jamah = sortingJamah || null
-        stageData.approved = approved || false
-
-        // Calculate weight difference if both weights are available
-        if (existingStage.length > 0 && existingStage[0].issue_weight && jamahWeight) {
-          stageData.weight_difference = jamahWeight - existingStage[0].issue_weight
+      if (parsedStones && parsedStones.length > 0) {
+        for (const stone of parsedStones) {
+          await connection.execute(
+            `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received, stage_added) 
+             VALUES (?, ?, ?, ?, ?, 1, 'framing')`,
+            [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats],
+          )
         }
       }
-
-      // Add in-progress specific data
-      if (status === "in-progress" && existingStage.length === 0) {
-        // Get issue weight from work order or set default
-        const [woDetails] = await connection.execute("SELECT gross_weight FROM work_orders WHERE id = ?", [workOrderId])
-        stageData.issue_date = currentDate
-        stageData.issue_weight = woDetails[0]?.gross_weight || 0
-        stageData.sorting_issue = sortingIssue || null
-        stageData.karigar_name = req.user.name
-      }
-
-      if (existingStage.length > 0) {
-        // Update existing stage
-        const updateFields = Object.keys(stageData)
-          .map((key) => `${key} = ?`)
-          .join(", ")
-        const updateValues = Object.values(stageData)
-
-        await connection.execute(`UPDATE work_order_stages SET ${updateFields} WHERE id = ?`, [
-          ...updateValues,
-          existingStage[0].id,
-        ])
-      } else {
-        // Create new stage
-        await connection.execute(
-          `
-          INSERT INTO work_order_stages (
-            work_order_id, stage_name, karigar_name, status, issue_date, 
-            issue_weight, jamah_date, jamah_weight, sorting_issue, sorting_jamah, 
-            weight_difference, approved, notes
-          ) VALUES (?, 'framing', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          [
-            workOrderId,
-            req.user.name,
-            stageData.status,
-            stageData.issue_date || null,
-            stageData.issue_weight || null,
-            stageData.jamah_date || null,
-            stageData.jamah_weight || null,
-            stageData.sorting_issue || null,
-            stageData.sorting_jamah || null,
-            stageData.weight_difference || null,
-            stageData.approved || false,
-            stageData.notes,
-          ],
-        )
-      }
-
-      // Update work order status if completed
-      if (status === "completed") {
-        await connection.execute("UPDATE work_orders SET status = 'in-progress' WHERE id = ?", [workOrderId])
-      }
-
-      // Add activity log
-      await connection.execute(
-        `
-        INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
-        [
-          workOrderId,
-          workOrder[0].work_order_number,
-          `Framing stage ${status}`,
-          req.user.name,
-          req.user.role,
-          `Framing stage updated to ${status}${jamahWeight ? ` with jamah weight ${jamahWeight}g` : ""}`,
-        ],
-      )
-
-      await connection.commit()
-
-      res.json({
-        success: true,
-        message: `Framing stage updated successfully`,
-      })
-    } catch (error) {
-      await connection.rollback()
-      console.error("Update framing status error:", error)
-      res.status(500).json({
-        success: false,
-        message: "Failed to update framing status",
-      })
-    } finally {
-      connection.release()
     }
-  },
-)
+
+    // Get work order number for activity log
+    const [workOrder] = await connection.execute("SELECT work_order_number FROM work_orders WHERE id = ?", [
+      workOrderId,
+    ])
+
+    // Add activity log
+    await connection.execute(
+      `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        workOrderId,
+        workOrder[0]?.work_order_number || "Unknown",
+        "Framing stage updated",
+        req.user?.name || "System",
+        req.user?.role || "framing",
+        `Status: ${status}${newImagePaths.length > 0 ? `, ${newImagePaths.length} images added` : ""}${notes ? `, Notes: ${notes}` : ""}`,
+      ],
+    )
+
+    await connection.commit()
+
+    res.json({
+      success: true,
+      message: "Framing stage updated successfully",
+      data: {
+        workOrderId,
+        status,
+        jamahWeight,
+        images: allImages,
+        notes,
+      },
+    })
+  } catch (error) {
+    await connection.rollback()
+    console.error("Error updating framing stage:", error)
+
+    // Clean up uploaded files on error
+    if (req.files && req.files.length > 0) {
+      req.files.forEach((file) => {
+        const filePath = path.join(__dirname, "../uploads", file.filename)
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Error deleting file:", filePath, err)
+        })
+      })
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update framing stage",
+      error: error.message,
+    })
+  } finally {
+    connection.release()
+  }
+})
 
 // Get framing stage details for a specific work order
 router.get(

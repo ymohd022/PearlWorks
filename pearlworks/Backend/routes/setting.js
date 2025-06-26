@@ -117,10 +117,10 @@ router.put(
   [
     authenticateToken,
     body("status").isIn(["not-started", "in-progress", "completed", "on-hold"]),
-    body("jamahWeight").optional().isFloat({ min: 0.01 }),
-    body("sortingIssue").optional().isInt({ min: 0 }),
-    body("sortingJamah").optional().isInt({ min: 0 }),
-    body("returnedStones").optional().isArray(),
+    body("jamahWeight").optional().isNumeric(),
+    body("sortingIssue").optional().isNumeric(),
+    body("sortingJamah").optional().isNumeric(),
+    body("weightDifference").optional().isNumeric(),
   ],
   async (req, res) => {
     const connection = await db.getConnection()
@@ -138,7 +138,19 @@ router.put(
       await connection.beginTransaction()
 
       const workOrderId = req.params.workOrderId
-      const { status, jamahWeight, notes, sortingIssue, sortingJamah, approved, returnedStones } = req.body
+      const {
+        status,
+        jamahWeight,
+        notes,
+        sortingIssue,
+        sortingJamah,
+        approved,
+        weightDifference,
+        issueDate,
+        jamahDate,
+        receivedStones,
+        returnedStones,
+      } = req.body
 
       // Get work order details
       const [workOrder] = await connection.execute(
@@ -147,86 +159,96 @@ router.put(
       )
 
       if (workOrder.length === 0) {
+        await connection.rollback()
         return res.status(404).json({
           success: false,
           message: "Work order not found",
         })
       }
 
-      // Check if setting stage exists
+      // Update or create setting stage
       const [existingStage] = await connection.execute(
         "SELECT id, issue_weight FROM work_order_stages WHERE work_order_id = ? AND stage_name = 'setting'",
         [workOrderId],
       )
 
       const currentDate = new Date()
-      const stageData = {
-        status,
-        notes: notes || null,
-        updated_at: currentDate,
-      }
-
-      // Add completion-specific data
-      if (status === "completed") {
-        stageData.jamah_date = currentDate
-        stageData.jamah_weight = jamahWeight
-        stageData.sorting_jamah = sortingJamah || null
-        stageData.approved = approved || false
-
-        // Calculate weight difference if both weights are available
-        if (existingStage.length > 0 && existingStage[0].issue_weight && jamahWeight) {
-          stageData.weight_difference = jamahWeight - existingStage[0].issue_weight
-        }
-      }
-
-      // Add in-progress specific data
-      if (status === "in-progress" && existingStage.length === 0) {
-        stageData.issue_date = currentDate
-        stageData.issue_weight = workOrder[0].gross_weight || 0
-        stageData.sorting_issue = sortingIssue || null
-        stageData.karigar_name = req.user.name
-      }
 
       if (existingStage.length > 0) {
         // Update existing stage
-        const updateFields = Object.keys(stageData)
-          .map((key) => `${key} = ?`)
-          .join(", ")
-        const updateValues = Object.values(stageData)
+        let updateQuery = `UPDATE work_order_stages SET 
+          status = ?, notes = ?, updated_at = ?, sorting_issue = ?, sorting_jamah = ?, 
+          approved = ?, weight_difference = ?`
+        const updateParams = [
+          status,
+          notes || null,
+          currentDate,
+          sortingIssue || null,
+          sortingJamah || null,
+          approved || false,
+          weightDifference || null,
+        ]
 
-        await connection.execute(`UPDATE work_order_stages SET ${updateFields} WHERE id = ?`, [
-          ...updateValues,
-          existingStage[0].id,
-        ])
+        if (status === "in-progress" && !existingStage[0].issue_date) {
+          updateQuery += ", issue_date = ?, issue_weight = ?"
+          updateParams.push(issueDate ? new Date(issueDate) : currentDate, workOrder[0].gross_weight || 0)
+        }
+
+        if (status === "completed" && jamahWeight) {
+          updateQuery += ", jamah_date = ?, jamah_weight = ?"
+          updateParams.push(jamahDate ? new Date(jamahDate) : currentDate, jamahWeight)
+        }
+
+        updateQuery += " WHERE id = ?"
+        updateParams.push(existingStage[0].id)
+
+        await connection.execute(updateQuery, updateParams)
       } else {
         // Create new stage
+        const issueWeight = workOrder[0].gross_weight || 0
         await connection.execute(
-          `
-          INSERT INTO work_order_stages (
+          `INSERT INTO work_order_stages (
             work_order_id, stage_name, karigar_name, status, issue_date, 
             issue_weight, jamah_date, jamah_weight, sorting_issue, sorting_jamah, 
             weight_difference, approved, notes
-          ) VALUES (?, 'setting', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             workOrderId,
+            "setting",
             req.user.name,
-            stageData.status,
-            stageData.issue_date || null,
-            stageData.issue_weight || null,
-            stageData.jamah_date || null,
-            stageData.jamah_weight || null,
-            stageData.sorting_issue || null,
-            stageData.sorting_jamah || null,
-            stageData.weight_difference || null,
-            stageData.approved || false,
-            stageData.notes,
+            status,
+            status === "in-progress" ? (issueDate ? new Date(issueDate) : currentDate) : null,
+            status === "in-progress" ? issueWeight : null,
+            status === "completed" ? (jamahDate ? new Date(jamahDate) : currentDate) : null,
+            status === "completed" && jamahWeight ? jamahWeight : null,
+            sortingIssue || null,
+            sortingJamah || null,
+            weightDifference || null,
+            approved || false,
+            notes || null,
           ],
         )
       }
 
-      // Handle returned stones if provided
-      if (returnedStones && returnedStones.length > 0) {
+      // Update received stones if provided
+      if (receivedStones && Array.isArray(receivedStones)) {
+        // Delete existing received stones
+        await connection.execute("DELETE FROM stones WHERE work_order_id = ? AND is_received = 1", [workOrderId])
+
+        // Insert new received stones
+        for (const stone of receivedStones) {
+          if (stone.type && stone.pieces > 0) {
+            await connection.execute(
+              `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received)
+               VALUES (?, ?, ?, ?, ?, 1)`,
+              [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats],
+            )
+          }
+        }
+      }
+
+      // Update returned stones if provided
+      if (returnedStones && Array.isArray(returnedStones)) {
         // Delete existing returned stones for this stage
         await connection.execute("DELETE FROM returned_stones WHERE work_order_id = ? AND stage_name = 'setting'", [
           workOrderId,
@@ -234,35 +256,27 @@ router.put(
 
         // Insert new returned stones
         for (const stone of returnedStones) {
-          await connection.execute(
-            `
-            INSERT INTO returned_stones (
-              work_order_id, stage_name, type, pieces, weight_grams, weight_carats, returned_by
-            ) VALUES (?, 'setting', ?, ?, ?, ?, ?)
-          `,
-            [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats, req.user.name],
-          )
+          if (stone.type && stone.pieces > 0) {
+            await connection.execute(
+              `INSERT INTO returned_stones (work_order_id, stage_name, type, pieces, weight_grams, weight_carats, returned_by)
+               VALUES (?, 'setting', ?, ?, ?, ?, ?)`,
+              [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats, req.user.name],
+            )
+          }
         }
-      }
-
-      // Update work order status if completed
-      if (status === "completed") {
-        await connection.execute("UPDATE work_orders SET status = 'in-progress' WHERE id = ?", [workOrderId])
       }
 
       // Add activity log
       await connection.execute(
-        `
-        INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
+        `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           workOrderId,
           workOrder[0].work_order_number,
           `Setting stage ${status}`,
           req.user.name,
           req.user.role,
-          `Setting stage updated to ${status}${jamahWeight ? ` with jamah weight ${jamahWeight}g` : ""}${returnedStones ? ` and ${returnedStones.length} stones returned` : ""}`,
+          `Setting stage updated to ${status}${jamahWeight ? ` with jamah weight ${jamahWeight}g` : ""}${weightDifference ? `, weight difference: ${weightDifference}g` : ""}`,
         ],
       )
 
@@ -270,14 +284,14 @@ router.put(
 
       res.json({
         success: true,
-        message: `Setting stage updated successfully`,
+        message: "Setting stage updated successfully",
       })
     } catch (error) {
       await connection.rollback()
-      console.error("Update setting status error:", error)
+      console.error("Update setting stage error:", error)
       res.status(500).json({
         success: false,
-        message: "Failed to update setting status",
+        message: "Failed to update setting stage",
       })
     } finally {
       connection.release()
@@ -289,6 +303,7 @@ router.put(
 router.get(
   "/details/:workOrderId",
   authenticateToken,
+  authorizeRoles("setting", "admin", "manager"),
   async (req, res) => {
     try {
       const workOrderId = req.params.workOrderId
@@ -345,7 +360,7 @@ router.get(
 )
 
 // Get setting statistics for dashboard
-router.get("/statistics", authenticateToken, async (req, res) => {
+router.get("/statistics", authenticateToken, authorizeRoles("setting", "admin", "manager"), async (req, res) => {
   try {
     const userId = req.user.id
     const userRole = req.user.role
@@ -388,37 +403,5 @@ router.get("/statistics", authenticateToken, async (req, res) => {
     })
   }
 })
-
-// Get stones for a work order
-router.get(
-  "/stones/:workOrderId",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const workOrderId = req.params.workOrderId
-
-      const [stones] = await db.execute("SELECT * FROM stones WHERE work_order_id = ? ORDER BY id", [workOrderId])
-
-      const [returnedStones] = await db.execute(
-        "SELECT * FROM returned_stones WHERE work_order_id = ? AND stage_name = 'setting' ORDER BY id",
-        [workOrderId],
-      )
-
-      res.json({
-        success: true,
-        data: {
-          receivedStones: stones,
-          returnedStones: returnedStones,
-        },
-      })
-    } catch (error) {
-      console.error("Get stones error:", error)
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch stones data",
-      })
-    }
-  },
-)
 
 module.exports = router
