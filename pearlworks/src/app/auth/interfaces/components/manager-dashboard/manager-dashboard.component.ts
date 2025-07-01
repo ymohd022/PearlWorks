@@ -12,6 +12,8 @@ import  { WorkOrderService } from "../../services/work-order.service"
 import { Router } from '@angular/router';
 import { AuthService } from "../../services/auth.service"
 import { RoleDashboardService } from "../../services/role-dashboard.service"
+import { AutocompleteService } from "../../services/autocomplete.service"
+import { AutocompleteOption } from "../../services/autocomplete.service"
 
 @Component({
   selector: 'app-manager-dashboard',
@@ -130,6 +132,12 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.addStoneRow()
     this.generateWorkOrderNumber()
   }
+
+  onPartyNameSelected(option: AutocompleteOption): void {
+    console.log("Party name selected:", option)
+    // You can add additional logic here if needed
+  }
+
 
   // Generate auto work order number
   generateWorkOrderNumber(): void {
@@ -339,6 +347,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     }
   }
 
+  private formatDateForBackend(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
   // FIXED with null check
   getWorkersByStage(stageType: string): Worker[] {
     if (!this.workers || !Array.isArray(this.workers)) {
@@ -364,11 +376,13 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       workOrderNumber: formValue.workOrderNumber,
       partyName: formValue.partyName,
       poNumber: formValue.poNumber,
-      poDate: formValue.poDate, // Keep as string
+      poDate: formValue.poDate ? this.formatDateForBackend(formValue.poDate) : undefined,
       itemDetails: formValue.itemDetails,
       modelNumber: formValue.modelNumber,
       descriptionOfWork: formValue.descriptionOfWork,
-      expectedCompletionDate: formValue.expectedCompletionDate, // Keep as string
+       expectedCompletionDate: formValue.expectedCompletionDate 
+    ? this.formatDateForBackend(formValue.expectedCompletionDate) 
+    : undefined, // Keep as string
       images: this.selectedImages, // Pass the actual File objects
       stones: formValue.stones || [],
       assignedWorkers: formValue.assignedWorkers || [],

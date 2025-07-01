@@ -50,6 +50,7 @@ import { SettingUpdateDialogComponent } from './role-dashboard/setting/setting-u
 import { PolishUpdateDialogComponent } from './role-dashboard/polish/polish-update-dialog/polish-update-dialog.component';
 import { StonesDialogComponent } from './role-dashboard/polish/stones-dialog/stones-dialog.component';
 import { UserManagementComponent } from './auth/interfaces/components/admin-dashboard/user-management/user-management.component';
+import { AutocompleteInputComponent } from './auth/interfaces/components/manager-dashboard/autocomplete-input/autocomplete-input.component';
 
 
 @NgModule({
@@ -69,6 +70,7 @@ import { UserManagementComponent } from './auth/interfaces/components/admin-dash
     PolishUpdateDialogComponent,
     StonesDialogComponent,
     UserManagementComponent,
+    AutocompleteInputComponent,
   ],
   imports: [
     BrowserModule,

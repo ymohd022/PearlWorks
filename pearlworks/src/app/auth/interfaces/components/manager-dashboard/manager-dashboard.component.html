@@ -60,23 +60,25 @@
                         <mat-hint>Auto-generated</mat-hint>
                       </mat-form-field>
 
-                      <mat-form-field appearance="outline">
-                        <mat-label>Party Name *</mat-label>
-                        <input matInput formControlName="partyName" placeholder="Enter party name">
-                        <mat-error *ngIf="createOrderForm.get('partyName')?.hasError('required')">
-                          Party name is required
-                        </mat-error>
-                        <mat-error *ngIf="createOrderForm.get('partyName')?.hasError('minlength')">
-                          Minimum 2 characters required
-                        </mat-error>
-                      </mat-form-field>
+                     <app-autocomplete-input
+                label="Party Name"
+                placeholder="Start typing party name..."
+                searchType="party-names"
+                [required]="true"
+                [value]="createOrderForm.get('partyName')?.value"
+                (valueChange)="createOrderForm.patchValue({partyName: $event})"
+                (selectionChange)="onPartyNameSelected($event)">
+              </app-autocomplete-input>
                     </div>
 
                     <div class="form-row">
-                      <mat-form-field appearance="outline">
-                        <mat-label>P.O. Number</mat-label>
-                        <input matInput formControlName="poNumber" placeholder="Enter PO number">
-                      </mat-form-field>
+                     <app-autocomplete-input
+                label="P.O. Number"
+                placeholder="Start typing PO number..."
+                searchType="po-numbers"
+                [value]="createOrderForm.get('poNumber')?.value"
+                (valueChange)="createOrderForm.patchValue({poNumber: $event})">
+              </app-autocomplete-input>
 
                       <mat-form-field appearance="outline">
                         <mat-label>P.O. Date</mat-label>
@@ -87,13 +89,14 @@
                     </div>
 
                     <div class="form-row">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Item Details *</mat-label>
-                        <input matInput formControlName="itemDetails" placeholder="e.g., Gold Ring Set">
-                        <mat-error *ngIf="createOrderForm.get('itemDetails')?.hasError('required')">
-                          Item details are required
-                        </mat-error>
-                      </mat-form-field>
+                       <app-autocomplete-input
+                label="Item Details"
+                placeholder="Start typing item details..."
+                searchType="item-details"
+                [required]="true"
+                [value]="createOrderForm.get('itemDetails')?.value"
+                (valueChange)="createOrderForm.patchValue({itemDetails: $event})">
+              </app-autocomplete-input>
 
                       <mat-form-field appearance="outline">
                         <mat-label>Expected Completion</mat-label>
@@ -103,11 +106,13 @@
                       </mat-form-field>
                     </div>
 
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>Description of Work</mat-label>
-                      <textarea matInput formControlName="descriptionOfWork" rows="3" 
-                                placeholder="Describe the work to be done..."></textarea>
-                    </mat-form-field>
+                     <app-autocomplete-input
+                label="Description of Work"
+                placeholder="Start typing description..."
+                searchType="descriptions"
+                [value]="createOrderForm.get('descriptionOfWork')?.value"
+                (valueChange)="createOrderForm.patchValue({descriptionOfWork: $event})">
+              </app-autocomplete-input>
                   </div>
 
                   <!-- Image Upload Section -->
@@ -162,10 +167,15 @@
                       <mat-card *ngFor="let stone of stones.controls; let i = index" [formGroupName]="i" class="stone-card">
                         <mat-card-content>
                           <div class="stone-form-row">
-                            <mat-form-field appearance="outline">
-                              <mat-label>Type *</mat-label>
-                              <input matInput formControlName="type" placeholder="e.g., Ruby, CZ">
-                            </mat-form-field>
+                            <app-autocomplete-input
+                      label="Stone Type"
+                      placeholder="e.g., Ruby, CZ..."
+                      searchType="stone-types"
+                      [required]="true"
+                      [value]="stone.get('type')?.value"
+                      (valueChange)="stone.patchValue({type: $event})">
+                    </app-autocomplete-input>
+
 
                             <mat-form-field appearance="outline">
                               <mat-label>Pieces *</mat-label>

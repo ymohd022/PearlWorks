@@ -1,0 +1,31 @@
+ <div class="autocomplete-container">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>{{ label }}</mat-label>
+        <input
+          matInput
+          #inputElement
+          [formControl]="inputControl"
+          [placeholder]="placeholder"
+          (focus)="onFocus()"
+          (blur)="onBlur()"
+          (keydown)="onKeyDown($event)"
+        />
+        <mat-error *ngIf="required && inputControl.hasError('required')">
+          {{ label }} is required
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Autocomplete Dropdown -->
+      <div class="autocomplete-dropdown" *ngIf="showSuggestions && suggestions.length > 0">
+        <div
+          *ngFor="let suggestion of suggestions; let i = index"
+          class="autocomplete-option"
+          [class.highlighted]="i === selectedIndex"
+          (mousedown)="selectSuggestion(suggestion)"
+          (mouseenter)="selectedIndex = i"
+        >
+          <mat-icon class="search-icon">search</mat-icon>
+          <span class="suggestion-text">{{ suggestion.value }}</span>
+        </div>
+      </div>
+    </div>
