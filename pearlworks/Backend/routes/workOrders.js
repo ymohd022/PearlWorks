@@ -24,8 +24,6 @@ const storage = multer.diskStorage({
 
 // const upload = multer({ storage: storage })
 
-
-
 router.get("/next-number", authenticateToken, async (req, res) => {
   try {
     // Get the latest work order number
@@ -65,7 +63,7 @@ router.get("/", authenticateToken, async (req, res) => {
       SELECT 
         wo.*,
         GROUP_CONCAT(DISTINCT CONCAT(wos.stage_name, ':', wos.status) SEPARATOR '|') as stages_info,
-        GROUP_CONCAT(DISTINCT CONCAT(wa.stage_type, ':', wa.user_id, ':', u.name) SEPARATOR '|') as assignments_info
+        GROUP_CONCAT(DISTINCT CONCAT(wa.stage_type, ':', wa.user_id, ':', u.name, ':', wa.assigned_date) SEPARATOR '|') as assignments_info
       FROM work_orders wo
       LEFT JOIN work_order_stages wos ON wo.id = wos.work_order_id
       LEFT JOIN worker_assignments wa ON wo.id = wa.work_order_id
@@ -649,12 +647,12 @@ function parseAssignmentsInfo(assignmentsInfo) {
 
   try {
     return assignmentsInfo.split("|").map((assignmentStr) => {
-      const [stageType, workerId, workerName] = assignmentStr.split(":")
+      const [stageType, workerId, workerName, assignedDate] = assignmentStr.split(":")
       return {
         stageType: stageType || "unknown",
         workerId: workerId || "",
         workerName: workerName || "Unassigned",
-        assignedDate: new Date(),
+        assignedDate: assignedDate ? new Date(assignedDate) : new Date(),
       }
     })
   } catch (error) {

@@ -99,12 +99,12 @@
               </app-autocomplete-input>
 
                       <mat-form-field appearance="outline">
-                        <mat-label>Expected Completion</mat-label>
-                        <input matInput [matDatepicker]="completionDatePicker" formControlName="expectedCompletionDate">
-                        <mat-datepicker-toggle matSuffix [for]="completionDatePicker"></mat-datepicker-toggle>
-                        <mat-datepicker #completionDatePicker></mat-datepicker>
-                      </mat-form-field>
-                    </div>
+                <mat-label>Expected Completion</mat-label>
+                <input matInput [matDatepicker]="completionDatePicker" formControlName="expectedCompletionDate">
+                <mat-datepicker-toggle matSuffix [for]="completionDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #completionDatePicker></mat-datepicker>
+              </mat-form-field>
+            </div>
 
                      <app-autocomplete-input
                 label="Description of Work"
@@ -183,20 +183,22 @@
                             </mat-form-field>
 
                             <mat-form-field appearance="outline">
-                              <mat-label>Weight (g) *</mat-label>
-                              <input matInput type="number" formControlName="weightGrams" step="0.001" min="0.001" 
-                                     (input)="onWeightGramsChange(i, $event)"
-                                     [value]="formatWeight(stone.get('weightGrams')?.value)">
-                              <mat-hint>Auto-converts to carats (×5)</mat-hint>
-                            </mat-form-field>
+                      <mat-label>Weight (g) *</mat-label>
+                      <input matInput type="number" formControlName="weightGrams" 
+                             step="0.001" min="0.001" 
+                             (input)="onWeightGramsChange(i, $event)"
+                             [value]="formatWeight(stone.get('weightGrams')?.value)">
+                      <mat-hint>Auto-converts to carats (×5)</mat-hint>
+                    </mat-form-field>
 
-                            <mat-form-field appearance="outline">
-                              <mat-label>Weight (ct) *</mat-label>
-                              <input matInput type="number" formControlName="weightCarats" step="0.001" min="0.001"
-                                     (input)="onWeightCaratsChange(i, $event)"
-                                     [value]="formatWeight(stone.get('weightCarats')?.value)">
-                              <mat-hint>Auto-converts to grams (÷5)</mat-hint>
-                            </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Weight (ct) *</mat-label>
+                      <input matInput type="number" formControlName="weightCarats" 
+                             step="0.001" min="0.001"
+                             (input)="onWeightCaratsChange(i, $event)"
+                             [value]="formatWeight(stone.get('weightCarats')?.value)">
+                      <mat-hint>Auto-converts to grams (÷5)</mat-hint>
+                    </mat-form-field>
 
                             <button mat-icon-button color="warn" type="button" (click)="removeStoneRow(i)" 
                                     [disabled]="stones.length === 1">
@@ -294,6 +296,21 @@
                     <mat-card-content>
                       <p><strong>Item:</strong> {{ order.itemDetails }}</p>
                       <p><strong>Current Stage:</strong> {{ getCurrentStage(order) | titlecase }}</p>
+                      
+                      <!-- Add assigned workers display -->
+                      <div class="assigned-workers-section" *ngIf="order.assignedWorkers && order.assignedWorkers.length > 0">
+                        <p><strong>Assigned Workers:</strong></p>
+                        <div class="workers-chips">
+                          <mat-chip-set>
+                            <mat-chip *ngFor="let worker of order.assignedWorkers" 
+                                     [matTooltip]="worker.stageType | titlecase"
+                                     class="worker-chip">
+                              <mat-icon>person</mat-icon>
+                              {{ worker.workerName }} ({{ worker.stageType | titlecase }})
+                            </mat-chip>
+                          </mat-chip-set>
+                        </div>
+                      </div>
                       
                       <div class="order-status">
                         <mat-chip-set>
@@ -805,6 +822,17 @@
               <mat-chip [class]="getStatusBadgeClass(selectedOrderForDetail.status)">
                 {{ selectedOrderForDetail.status | titlecase }}
               </mat-chip>
+            </div>
+            <!-- Add assigned worker information -->
+            <div class="detail-item" *ngIf="selectedOrderForDetail.assignedWorkerName">
+              <span class="detail-label">Assigned Worker:</span>
+              <span class="detail-value">
+                <mat-icon>person</mat-icon>
+                {{ selectedOrderForDetail.assignedWorkerName }}
+                <span *ngIf="selectedOrderForDetail.assignedWorkerEmail" class="worker-email">
+                  ({{ selectedOrderForDetail.assignedWorkerEmail }})
+                </span>
+              </span>
             </div>
           </div>
         </div>

@@ -44,10 +44,13 @@ router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "adm
         wos.sorting_issue,
         wos.sorting_jamah,
         wos.approved,
-        wa.assigned_date
+        wa.assigned_date,
+        u.name as assigned_worker_name,
+        u.email as assigned_worker_email
       FROM work_orders wo
       JOIN worker_assignments wa ON wo.id = wa.work_order_id
       LEFT JOIN work_order_stages wos ON wo.id = wos.work_order_id AND wos.stage_name = 'framing'
+      LEFT JOIN users u ON wa.user_id = u.id
       WHERE wa.stage_type = 'framing'
     `
 
@@ -81,6 +84,8 @@ router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "adm
       sortingIssue: order.sorting_issue,
       sortingJamah: order.sorting_jamah,
       approved: order.approved || false,
+      assignedWorkerName: order.assigned_worker_name || "Unassigned",
+      assignedWorkerEmail: order.assigned_worker_email || "",
     }))
 
     res.json({

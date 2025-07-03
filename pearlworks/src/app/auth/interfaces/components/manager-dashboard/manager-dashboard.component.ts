@@ -86,6 +86,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.loadWorkOrders()
     this.loadWorkers()
     this.loadStageData()
+    this.setupDateSubscriptions()
   }
 
   ngOnDestroy(): void {
@@ -350,6 +351,8 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   private formatDateForBackend(date: Date): string {
   return date.toISOString().split('T')[0];
 }
+
+
 
   // FIXED with null check
   getWorkersByStage(stageType: string): Worker[] {
@@ -658,26 +661,30 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Stone weight conversion methods
   onWeightGramsChange(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
+    const carats = (value * 5).toFixed(3) // Carats = Grams × 5
     const stoneControl = this.stones.at(index)
-    stoneControl.patchValue(
-      {
-        weightCarats: Number.parseFloat(carats),
-      },
-      { emitEvent: false },
-    )
+    stoneControl.patchValue({ weightCarats: Number.parseFloat(carats) }, { emitEvent: false })
   }
 
   onWeightCaratsChange(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
+    const grams = (value / 5).toFixed(3) // Grams = Carats ÷ 5
     const stoneControl = this.stones.at(index)
-    stoneControl.patchValue(
-      {
-        weightGrams: Number.parseFloat(grams),
-      },
-      { emitEvent: false },
-    )
+    stoneControl.patchValue({ weightGrams: Number.parseFloat(grams) }, { emitEvent: false })
+  }
+
+  private setupDateSubscriptions(): void {
+    // Auto-set expected completion date to 1 week from PO date
+    this.createOrderForm
+      .get("poDate")
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((poDate) => {
+        if (poDate) {
+          const expectedDate = new Date(poDate)
+          expectedDate.setDate(expectedDate.getDate() + 7) // Add 1 week
+          this.createOrderForm.patchValue({ expectedCompletionDate: expectedDate }, { emitEvent: false })
+        }
+      })
   }
 
   formatWeight(value: number): string {
