@@ -24,7 +24,7 @@ import { AutocompleteOption } from "../../services/autocomplete.service"
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Tab management
   selectedTabIndex = 0
-
+expandedState: { [orderId: string]: boolean } = {};
   // Forms
   createOrderForm!: FormGroup
   assignmentForm!: FormGroup
@@ -695,6 +695,14 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.authService.logout()
     this.router.navigate(["/login"])
   }
+
+  toggleOrderDetails(orderId: string): void {
+  this.expandedState[orderId] = !this.expandedState[orderId];
+}
+
+isExpanded(orderId: string): boolean {
+  return this.expandedState[orderId];
+}
 
   // Setting-specific stone management
   addReceivedStone(): void {

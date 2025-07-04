@@ -269,72 +269,94 @@
 
             <!-- Work Orders List -->
             <mat-card class="orders-list-card">
-              <mat-card-header>
-                <mat-card-title>
-                  <mat-icon>list_alt</mat-icon>
-                  Work Orders
-                </mat-card-title>
-              </mat-card-header>
-              
-              <mat-card-content>
-                <div *ngIf="loading" class="loading-container">
-                  <mat-spinner></mat-spinner>
-                </div>
-                
-                <div *ngIf="!loading && workOrders.length === 0" class="empty-state">
-                  <mat-icon>inbox</mat-icon>
-                  <p>No work orders found</p>
-                </div>
+  <mat-card-header>
+    <mat-card-title>
+      <mat-icon>list_alt</mat-icon>
+      Work Orders
+    </mat-card-title>
+  </mat-card-header>
+  
+  <mat-card-content>
+    <div *ngIf="loading" class="loading-container">
+      <mat-spinner></mat-spinner>
+    </div>
+    
+    <div *ngIf="!loading && workOrders.length === 0" class="empty-state">
+      <mat-icon>inbox</mat-icon>
+      <p>No work orders found</p>
+    </div>
 
-                <div *ngIf="!loading && workOrders.length > 0" class="orders-list">
-                  <mat-card *ngFor="let order of workOrders" class="order-item">
-                    <mat-card-header>
-                      <mat-card-title>{{ order.workOrderNumber }}</mat-card-title>
-                      <mat-card-subtitle>{{ order.partyName }} • {{ formatDate(order.createdDate) }}</mat-card-subtitle>
-                    </mat-card-header>
-                    
-                    <mat-card-content>
-                      <p><strong>Item:</strong> {{ order.itemDetails }}</p>
-                      <p><strong>Current Stage:</strong> {{ getCurrentStage(order) | titlecase }}</p>
-                      
-                      <!-- Add assigned workers display -->
-                      <div class="assigned-workers-section" *ngIf="order.assignedWorkers && order.assignedWorkers.length > 0">
-                        <p><strong>Assigned Workers:</strong></p>
-                        <div class="workers-chips">
-                          <mat-chip-set>
-                            <mat-chip *ngFor="let worker of order.assignedWorkers" 
-                                     [matTooltip]="worker.stageType | titlecase"
-                                     class="worker-chip">
-                              <mat-icon>person</mat-icon>
-                              {{ worker.workerName }} ({{ worker.stageType | titlecase }})
-                            </mat-chip>
-                          </mat-chip-set>
-                        </div>
-                      </div>
-                      
-                      <div class="order-status">
-                        <mat-chip-set>
-                          <mat-chip [class]="getStatusBadgeClass(order.status)">
-                            {{ order.status | titlecase }}
-                          </mat-chip>
-                        </mat-chip-set>
-                        <div class="progress-info">
-                          <mat-progress-bar mode="determinate" [value]="calculateProgress(order)"></mat-progress-bar>
-                          <span>{{ calculateProgress(order) }}%</span>
-                        </div>
-                      </div>
-                    </mat-card-content>
-                    
-                    <mat-card-actions>
-                      <button mat-button color="primary" (click)="openAssignmentModal(order)">
-                        <mat-icon>person_add</mat-icon>
-                        Assign Workers
-                      </button>
-                    </mat-card-actions>
-                  </mat-card>
-                </div>
-              </mat-card-content>
-            </mat-card>
+    <div *ngIf="!loading && workOrders.length > 0" class="orders-list">
+      <mat-card *ngFor="let order of workOrders" class="order-item">
+        <mat-card-header>
+          <mat-card-title class="order-title">
+            <div class="order-header">
+              <div class="order-info">
+                <span class="order-number">{{ order.workOrderNumber }}</span>
+                <span class="order-date">{{ formatDate(order.createdDate) }}</span>
+              </div>
+              <div class="order-status-indicator">
+                <mat-chip [class]="getStatusBadgeClass(order.status)" class="status-chip">
+                  {{ order.status | titlecase }}
+                </mat-chip>
+                <button mat-icon-button (click)="toggleOrderDetails(order.id)" 
+                        [attr.aria-label]="'Toggle details for ' + order.workOrderNumber"
+                        class="toggle-details-btn">
+                  <mat-icon>{{ isExpanded(order.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+          </mat-card-title>
+          <mat-card-subtitle>{{ order.partyName }}</mat-card-subtitle>
+        </mat-card-header>
+        
+        <div *ngIf="isExpanded(order.id)" class="order-details-expanded">
+          <mat-divider></mat-divider>
+          <mat-card-content class="expanded-content">
+            <div class="detail-row">
+              <span class="detail-label">Item:</span>
+              <span class="detail-value">{{ order.itemDetails }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Current Stage:</span>
+              <span class="detail-value">{{ getCurrentStage(order) | titlecase }}</span>
+            </div>
+            
+            <div class="progress-section">
+              <div class="progress-info">
+                <mat-progress-bar mode="determinate" 
+                                  [value]="calculateProgress(order)"
+                                  color="primary"></mat-progress-bar>
+                <span class="progress-value">{{ calculateProgress(order) }}%</span>
+              </div>
+            </div>
+            
+            <div class="assigned-workers-section" *ngIf="order.assignedWorkers && order.assignedWorkers.length > 0">
+              <p class="workers-title"><strong>Assigned Workers:</strong></p>
+              <div class="workers-chips">
+                <mat-chip-set>
+                  <mat-chip *ngFor="let worker of order.assignedWorkers" 
+                            [matTooltip]="worker.stageType | titlecase"
+                            class="worker-chip">
+                    <mat-icon>person</mat-icon>
+                    {{ worker.workerName }} ({{ worker.stageType | titlecase }})
+                  </mat-chip>
+                </mat-chip-set>
+              </div>
+            </div>
+          </mat-card-content>
+          
+          <mat-card-actions>
+            <button mat-button color="primary" (click)="openAssignmentModal(order)" class="assign-btn">
+              <mat-icon>person_add</mat-icon>
+              Assign Workers
+            </button>
+          </mat-card-actions>
+        </div>
+      </mat-card>
+    </div>
+  </mat-card-content>
+</mat-card>       
           </div>
         </div>
       </ng-template>

@@ -1060,6 +1060,139 @@
   border-radius: 50%;
 }
 
+
+/* Add these styles to the existing CSS */
+
+/* Order header styles */
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.order-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.order-number {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.order-date {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.order-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-details-btn {
+  transition: transform 0.3s ease;
+}
+
+.toggle-details-btn.rotated {
+  transform: rotate(180deg);
+}
+
+/* Expanded details styles */
+.order-details-expanded {
+  background: rgba(245, 245, 245, 0.5);
+  border-radius: 0 0 12px 12px;
+  padding: 16px;
+}
+
+.expanded-content {
+  padding: 16px 0;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.detail-label {
+  font-weight: 600;
+  min-width: 120px;
+  color: #555;
+}
+
+.detail-value {
+  flex: 1;
+}
+
+.workers-title {
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.worker-chip {
+  margin: 4px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* Progress section */
+.progress-section {
+  margin: 20px 0;
+}
+
+.progress-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-value {
+  font-weight: 600;
+  color: #667eea;
+  min-width: 50px;
+}
+
+/* Assign button */
+.assign-btn {
+  margin-top: 16px;
+  border: 1px solid #667eea;
+  border-radius: 24px;
+  padding: 0 16px;
+  transition: all 0.3s ease;
+}
+
+.assign-btn:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* Status chip colors */
+.status-chip.mat-primary {
+  background-color: #2196f3;
+  color: white;
+}
+
+.status-chip.mat-accent {
+  background-color: #4caf50;
+  color: white;
+}
+
+.status-chip.mat-warn {
+  background-color: #f44336;
+  color: white;
+}
+
+.status-chip.mat-chip-outlined {
+  background-color: transparent;
+  border: 1px solid #e0e0e0;
+  color: #666;
+}
+
 .remove-update-image-btn:hover {
   background: rgba(244, 67, 54, 1);
   transform: scale(1.1);
