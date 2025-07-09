@@ -563,65 +563,36 @@
           </div>
 
           <!-- Stone Management Section for Framing -->
-          <div class="setting-section" *ngIf="selectedStage === 'framing'">
-            <div class="section-header">
-              <h4>
-                <mat-icon>add_circle</mat-icon>
-                Add Stones
-              </h4>
-              <button mat-raised-button color="primary" type="button" (click)="addStoneToUpdate()">
-                <mat-icon>add</mat-icon>
-                Add Stone
-              </button>
-            </div>
+  <div class="setting-section" *ngIf="selectedStage === 'framing'">
+  <div class="section-header">
+    <h4>
+      <mat-icon>diamond</mat-icon>
+      Stones Information
+    </h4>
+  </div>
 
-            <div formArrayName="addedStones" class="stones-table">
-              <div class="stones-header">
-                <span>Type of Stone</span>
-                <span>Pieces</span>
-                <span>Wt/Grams</span>
-                <span>Wt/Carat</span>
-                <span>Actions</span>
-              </div>
-              
-              <div *ngFor="let stone of addedStones.controls; let i = index" 
-                   [formGroupName]="i" class="stone-row">
-                <mat-form-field appearance="outline">
-                  <input matInput formControlName="type" placeholder="Ruby, CZ, etc.">
-                </mat-form-field>
-
-                <mat-form-field appearance="outline">
-                  <input matInput type="number" formControlName="pieces" min="1">
-                </mat-form-field>
-
-                <mat-form-field appearance="outline">
-                  <input matInput type="number" formControlName="weightGrams" step="0.001" 
-                         (input)="onUpdateWeightGramsChange(i, $event)"
-                         [value]="formatWeight(stone.get('weightGrams')?.value)">
-                </mat-form-field>
-
-                <mat-form-field appearance="outline">
-                  <input matInput type="number" formControlName="weightCarats" step="0.001"
-                         (input)="onUpdateWeightCaratsChange(i, $event)"
-                         [value]="formatWeight(stone.get('weightCarats')?.value)">
-                </mat-form-field>
-
-                <button mat-icon-button color="warn" type="button" 
-                        (click)="removeAddedStone(i)">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-            </div>
-
-            <div class="stone-balance-section">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Total Stone Balance (Auto-calculated)</mat-label>
-                <input matInput type="number" formControlName="stoneBalance" readonly
-                       class="balance-field">
-                <mat-hint>Original stones + Added stones</mat-hint>
-              </mat-form-field>
-            </div>
-          </div>
+  <!-- Original stones -->
+  <div *ngIf="originalStones.length > 0" class="stones-table">
+    <div class="stones-header">
+      <span>Type</span>
+      <span>Pcs</span>
+      <span>Wt/Gms</span>
+      <span>Wt/Carat</span>
+    </div>
+    
+    <div *ngFor="let stone of originalStones" class="stone-row">
+      <span>{{ stone.type }}</span>
+      <span>{{ stone.pieces }}</span>
+      <span>{{ formatWeight(stone.weightGrams) }}</span>
+      <span>{{ formatWeight(stone.weightCarats) }}</span>
+    </div>
+  </div>
+  
+  <div *ngIf="originalStones.length === 0" class="empty-stones">
+    <mat-icon>info</mat-icon>
+    No stones recorded for this order
+  </div>
+</div>
 
           <!-- Image Upload Section for Updates -->
           <div class="setting-section">
@@ -658,7 +629,7 @@
             </div>
           </div>
 
-          <!-- Received Stones Section -->
+          <!-- Received Stones Section for Setting Stage -->
           <div class="setting-section" *ngIf="selectedStage === 'setting'">
             <div class="section-header">
               <h4>
@@ -687,7 +658,7 @@
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <input matInput type="number" formControlName="pieces" min="1">
+                  <input matInput type="number" formControlName="pieces" min="0">
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -709,9 +680,24 @@
                 </button>
               </div>
             </div>
+
+            <!-- Received Stones Total -->
+            <div class="stone-balance-section">
+              <h5>Received Stones Total:</h5>
+              <div class="setting-form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Total Weight (Grams)</mat-label>
+                  <input matInput [value]="formatWeight(receivedStonesTotal.grams)" readonly class="balance-field">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Total Weight (Carats)</mat-label>
+                  <input matInput [value]="formatWeight(receivedStonesTotal.carats)" readonly class="balance-field">
+                </mat-form-field>
+              </div>
+            </div>
           </div>
 
-          <!-- Returned Stones Section -->
+          <!-- Returned Stones Section for Setting Stage -->
           <div class="setting-section" *ngIf="selectedStage === 'setting'">
             <div class="section-header">
               <h4>
@@ -740,7 +726,7 @@
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <input matInput type="number" formControlName="pieces" min="1">
+                  <input matInput type="number" formControlName="pieces" min="0">
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -760,6 +746,53 @@
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
+            </div>
+
+            <!-- Returned Stones Total -->
+            <div class="stone-balance-section">
+              <h5>Returned Stones Total:</h5>
+              <div class="setting-form-row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Total Weight (Grams)</mat-label>
+                  <input matInput [value]="formatWeight(returnedStonesTotal.grams)" readonly class="balance-field">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Total Weight (Carats)</mat-label>
+                  <input matInput [value]="formatWeight(returnedStonesTotal.carats)" readonly class="balance-field">
+                </mat-form-field>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stone Difference and Remaining Section for Setting Stage -->
+          <div class="setting-section" *ngIf="selectedStage === 'setting'">
+            <h4>
+              <mat-icon>calculate</mat-icon>
+              Stone Balance Summary
+            </h4>
+            
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Difference (Grams)</mat-label>
+                <input matInput [value]="formatWeight(stonesDifference.grams)" readonly class="difference-field">
+                <mat-hint>Received - Returned</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Difference (Carats)</mat-label>
+                <input matInput [value]="formatWeight(stonesDifference.carats)" readonly class="difference-field">
+                <mat-hint>Received - Returned</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <div class="setting-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Remaining Stones (Grams)</mat-label>
+                <input matInput [value]="formatWeight(remainingStones.grams)" readonly class="balance-field">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Remaining Stones (Carats)</mat-label>
+                <input matInput [value]="formatWeight(remainingStones.carats)" readonly class="balance-field">
+              </mat-form-field>
             </div>
           </div>
 

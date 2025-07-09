@@ -2,6 +2,22 @@ const express = require("express")
 const { body, validationResult } = require("express-validator")
 const db = require("../config/database")
 const { authenticateToken } = require("../middleware/auth")
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "../uploads");
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage: storage });
 
 const router = express.Router()
 
@@ -171,8 +187,10 @@ router.get("/assigned-orders/:stage", authenticateToken, async (req, res) => {
 })
 
 // Update stage status (manager can update any stage)
+// Update stage status (manager can update any stage)
 router.put(
   "/update-stage/:workOrderId",
+  upload.array('updateImages'), // Handle file uploads
   [
     authenticateToken,
     body("stage").isIn(["framing", "setting", "polish", "repair", "dispatch"]),
@@ -182,43 +200,72 @@ router.put(
     body("sortingJamah").optional().isNumeric(),
   ],
   async (req, res) => {
-    const connection = await db.getConnection()
+    const connection = await db.getConnection();
 
     try {
-      const errors = validationResult(req)
+      const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
           message: "Validation failed",
           errors: errors.array(),
-        })
+        });
       }
 
-      await connection.beginTransaction()
+      await connection.beginTransaction();
 
-      const workOrderId = req.params.workOrderId
-      const { stage, status, jamahWeight, notes, sortingIssue, sortingJamah, approved } = req.body
+      const workOrderId = req.params.workOrderId;
+      // Parse form data values
+      const stage = req.body.stage;
+      const status = req.body.status;
+      const jamahWeight = req.body.jamahWeight ? parseFloat(req.body.jamahWeight) : null;
+      const notes = req.body.notes;
+      const sortingIssue = req.body.sortingIssue ? parseInt(req.body.sortingIssue) : null;
+      const sortingJamah = req.body.sortingJamah ? parseInt(req.body.sortingJamah) : null;
+      const approved = req.body.approved === 'true';
+
+      // Handle uploaded images
+      let newImagePaths = [];
+      if (req.files && req.files.length > 0) {
+        newImagePaths = req.files.map((file) => `/uploads/${file.filename}`);
+      }
 
       // Get work order details
       const [workOrder] = await connection.execute(
-        "SELECT work_order_number, gross_weight FROM work_orders WHERE id = ?",
-        [workOrderId],
-      )
+        "SELECT id, work_order_number, gross_weight, status AS currentStatus, images FROM work_orders WHERE id = ?",
+        [workOrderId]
+      );
 
       if (workOrder.length === 0) {
-        await connection.rollback()
+        await connection.rollback();
         return res.status(404).json({
           success: false,
           message: "Work order not found",
-        })
+        });
       }
+
+      // Update images if new ones were uploaded
+      let allImages = [];
+      if (workOrder[0].images) {
+        try {
+          allImages = JSON.parse(workOrder[0].images);
+        } catch (e) {
+          console.error("Error parsing existing images:", e);
+        }
+      }
+      allImages = [...allImages, ...newImagePaths];
+      
+      // Update work order images
+      await connection.execute(
+        "UPDATE work_orders SET images = ? WHERE id = ?",
+        [JSON.stringify(allImages), workOrderId]
+      );
 
       // Check if stage exists
       const [existingStage] = await connection.execute(
         "SELECT id, issue_weight FROM work_order_stages WHERE work_order_id = ? AND stage_name = ?",
-        [workOrderId, stage],
+        [workOrderId, stage]
       )
-
       const currentDate = new Date()
 
       if (existingStage.length > 0) {
@@ -251,64 +298,75 @@ router.put(
 
         await connection.execute(updateQuery, updateParams)
       } else {
-        // Create new stage
-        const issueWeight = workOrder[0].gross_weight || 0
-        const insertParams = [
-          workOrderId,
-          stage,
-          req.user?.name || "Manager",
-          status,
-          status === "in-progress" ? currentDate : null,
-          status === "in-progress" ? issueWeight : null,
-          status === "completed" ? currentDate : null,
-          status === "completed" && jamahWeight ? jamahWeight : null,
-          sortingIssue || null,
-          status === "completed" ? sortingJamah || null : null,
-          status === "completed" && jamahWeight && issueWeight ? jamahWeight - issueWeight : null,
-          status === "completed" ? approved || false : false,
-          notes || null,
-        ]
-
+    // Only create new record for in-progress if it doesn't exist
+    if (status === "in-progress") {
         await connection.execute(
-          `INSERT INTO work_order_stages (
-            work_order_id, stage_name, karigar_name, status, issue_date, 
-            issue_weight, jamah_date, jamah_weight, sorting_issue, sorting_jamah, 
-            weight_difference, approved, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          insertParams,
-        )
-      }
+            `INSERT INTO work_order_stages (
+                work_order_id, stage_name, status, notes, 
+                issue_weight, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                workOrderId,
+                stage,
+                status,
+                notes || null,
+                workOrder[0].gross_weight || 0,
+                currentDate,
+                currentDate
+            ]
+        );
+    } else {
+        // For other statuses, only create record if not exists
+        await connection.execute(
+            `INSERT INTO work_order_stages (
+                work_order_id, stage_name, status, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            [workOrderId, stage, status, notes || null, currentDate, currentDate]
+        );
+    }
+}
 
-      // Update overall work order status if needed
+      // Update overall work order status if needed - FIXED: update existing record
       if (status === "completed") {
         // Check if all stages are completed
         const [stageCount] = await connection.execute(
           "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed FROM work_order_stages WHERE work_order_id = ?",
-          [workOrderId],
+          [workOrderId]  // FIXED: use existing workOrderId
         )
 
         if (stageCount[0].total > 0 && stageCount[0].completed === stageCount[0].total) {
-          await connection.execute("UPDATE work_orders SET status = 'completed', completed_date = ? WHERE id = ?", [
-            currentDate,
-            workOrderId,
-          ])
-        } else {
-          await connection.execute("UPDATE work_orders SET status = 'in-progress' WHERE id = ?", [workOrderId])
+          // Only update to completed if all stages are done
+          await connection.execute(
+            "UPDATE work_orders SET status = 'completed', completed_date = ? WHERE id = ?",
+            [currentDate, workOrderId]  // FIXED: update existing record
+          )
+        } else if (workOrder[0].currentStatus !== "in-progress") {
+          // Otherwise, mark as in-progress if not already
+          await connection.execute(
+            "UPDATE work_orders SET status = 'in-progress' WHERE id = ?",
+            [workOrderId]  // FIXED: update existing record
+          )
         }
+      } else if (status === "in-progress" && workOrder[0].currentStatus !== "in-progress") {
+        // Mark as in-progress if stage is set to in-progress and work order wasn't already
+        await connection.execute(
+          "UPDATE work_orders SET status = 'in-progress' WHERE id = ?",
+          [workOrderId]  // FIXED: update existing record
+        )
       }
 
-      // Add activity log
+      // Add activity log - FIXED: reference existing work order
       await connection.execute(
         `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
-          workOrderId,
+          workOrderId,  // FIXED: existing work order ID
           workOrder[0].work_order_number,
           `${stage} stage ${status}`,
           req.user?.name || "Manager",
           req.user?.role || "manager",
           `Manager updated ${stage} stage to ${status}${jamahWeight ? ` with jamah weight ${jamahWeight}g` : ""}`,
-        ],
+        ]
       )
 
       await connection.commit()
@@ -328,7 +386,7 @@ router.put(
     } finally {
       connection.release()
     }
-  },
+  }
 )
 
 // Get manager dashboard statistics

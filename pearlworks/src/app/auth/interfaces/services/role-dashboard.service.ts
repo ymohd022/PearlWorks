@@ -30,6 +30,16 @@ export class RoleDashboardService {
     )
   }
 
+  updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<StageUpdateResponse> {
+  return this.apiService.updateManagerStageStatus(workOrderId, updateRequest).pipe(
+    map((response) => ({
+      success: response.success,
+      message: response.message,
+      workOrder: response.data,
+    }))
+  );
+}
+
   getSettingStatistics(): Observable<{ success: boolean; data: SettingStatistics }> {
     return this.apiService.getSettingStatistics()
   }

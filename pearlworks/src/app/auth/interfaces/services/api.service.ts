@@ -128,11 +128,42 @@ export class ApiService {
     })
   }
 
-  updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
-    return this.http.put(`${this.apiUrl}/manager/update-stage/${workOrderId}`, updateRequest, {
-      headers: this.getHeaders(),
-    })
+  // Add this method to ApiService
+updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
+  // Handle image uploads separately
+  if (updateRequest.updateImages && updateRequest.updateImages.length > 0) {
+    const formData = new FormData();
+    
+    // Add all form fields
+    Object.keys(updateRequest).forEach(key => {
+      if (key === 'updateImages') {
+        updateRequest[key].forEach((file: File) => {
+          formData.append('updateImages', file);
+        });
+      } else {
+        formData.append(key, updateRequest[key]);
+      }
+    });
+    
+    const token = localStorage.getItem('auth_token');
+    const headers = new HttpHeaders({
+      Authorization: token ? `Bearer ${token}` : '',
+    });
+    
+    return this.http.put(
+      `${this.apiUrl}/manager/update-stage/${workOrderId}`, 
+      formData, 
+      { headers }
+    );
   }
+  
+  // Regular request without images
+  return this.http.put(
+    `${this.apiUrl}/manager/update-stage/${workOrderId}`, 
+    updateRequest, 
+    { headers: this.getHeaders() }
+  );
+}
 
   getManagerStatistics(): Observable<any> {
     return this.http.get(`${this.apiUrl}/manager/statistics`, {
