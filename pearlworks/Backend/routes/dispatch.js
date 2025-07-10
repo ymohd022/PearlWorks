@@ -3,68 +3,171 @@ const router = express.Router()
 const { authenticateToken } = require("../middleware/auth")
 const db = require("../config/database")
 
-
-// @desc    Get orders ready for dispatch
-// @route   GET /api/dispatch/assigned-orders
+// @desc    Get orders ready for dispatch with calculated weights
+// @route   GET /api/dispatch/ready-orders
 // @access  Private
-router.get("/assigned-orders", authenticateToken, async (req, res) => {
+router.get("/ready-orders", authenticateToken, async (req, res) => {
   try {
-    console.log("Fetching orders ready for dispatch...")
-
     const query = `
       SELECT 
         wo.id,
         wo.work_order_number as workOrderNumber,
         wo.party_name as partyName,
-        wo.item_details as productType,
-        wo.issue_weight as issueWeight,
-        wo.jamah_weight as jamahWeight,
-        wo.expected_completion_date as expectedCompletionDate,
-        wo.created_at as createdDate,
-        wos.stage_name as currentStage,
-        wos.status,
-        wos.notes,
-        wos.updated_by as updatedBy,
-        wos.updated_at as lastUpdated,
-        wos.completed_date as completedDate,
-        wa.assigned_date as assignedDate,
-        u.name as assignedWorkerName,
-        ds.dispatch_date,
-        ds.courier_service,
-        ds.tracking_number,
-        ds.delivery_status,
-        ds.delivery_date,
-        ds.recipient_name,
-        ds.dispatch_notes
+        wo.completed_date as orderCompletedDate,
+        wo.dispatched_by as dispatchedBy,
+        wo.status,
+        -- Calculate gross weight from stones
+        COALESCE(
+          (SELECT SUM(s.weight_grams) 
+           FROM stones s 
+           WHERE s.work_order_id = wo.id AND s.is_received = 1), 
+          0
+        ) as grossWeight,
+        -- Calculate net weight (gross weight - returned stones)
+        COALESCE(
+          (SELECT SUM(s.weight_grams) 
+           FROM stones s 
+           WHERE s.work_order_id = wo.id AND s.is_received = 1), 
+          0
+        ) - COALESCE(
+          (SELECT SUM(rs.weight_grams) 
+           FROM returned_stones rs 
+           WHERE rs.work_order_id = wo.id), 
+          0
+        ) as netWeight,
+        CASE 
+          WHEN wo.status = 'dispatched' THEN 'dispatched'
+          ELSE 'ready'
+        END as dispatchStatus
       FROM work_orders wo
-      INNER JOIN work_order_stages wos ON wo.id = wos.work_order_id
-      LEFT JOIN worker_assignments wa ON wo.id = wa.work_order_id AND wa.stage = 'dispatch'
-      LEFT JOIN users u ON wa.worker_id = u.id
-      LEFT JOIN dispatch_details ds ON wo.id = ds.work_order_id
-      WHERE wos.stage_name IN ('polish', 'repair', 'setting', 'framing') 
-        AND wos.status = 'completed'
-        AND wo.id NOT IN (
-          SELECT DISTINCT work_order_id 
-          FROM work_order_stages 
-          WHERE stage_name = 'dispatch' AND status = 'dispatched'
-        )
-      ORDER BY wos.completed_date ASC, wo.expected_completion_date ASC
+      WHERE wo.status IN ('completed', 'dispatched')
+      ORDER BY 
+        CASE WHEN wo.status = 'completed' THEN 0 ELSE 1 END,
+        wo.completed_date DESC
     `
 
     const [rows] = await db.execute(query)
 
-    console.log(`Found ${rows.length} orders ready for dispatch`)
+    const orders = rows.map((row) => ({
+      id: row.id.toString(),
+      workOrderNumber: row.workOrderNumber,
+      partyName: row.partyName,
+      orderCompletedDate: row.orderCompletedDate,
+      grossWeight: Number.parseFloat(row.grossWeight) || 0,
+      netWeight: Number.parseFloat(row.netWeight) || 0,
+      dispatchedBy: row.dispatchedBy || "",
+      status: row.dispatchStatus,
+    }))
 
     res.json({
       success: true,
-      data: rows,
-      message: `Found ${rows.length} orders ready for dispatch`,
+      data: orders,
     })
   } catch (error) {
-    console.error("Error fetching dispatch orders:", error)
+    console.error("Error fetching dispatch ready orders:", error)
     res.status(500).json({
       success: false,
       message: "Failed to fetch orders ready for dispatch",
+      error: error.message,
+    })
+  }
+})
+
+// @desc    Get orders assigned to dispatch stage with calculated weights
+// @route   GET /api/dispatch/assigned-orders
+// @access  Private
+router.get("/assigned-orders", authenticateToken, async (req, res) => {
+  try {
+    console.log("Fetching dispatch assigned orders...")
+
+    // First, let's check if there are any worker assignments for dispatch
+    const [assignmentCheck] = await db.execute(`
+      SELECT COUNT(*) as count 
+      FROM worker_assignments 
+      WHERE stage_type = 'dispatch'
+    `)
+    console.log(`Found ${assignmentCheck[0].count} dispatch assignments`)
+
+    // Modified query with better error handling and debugging
+    const query = `
+      SELECT 
+        wo.id,
+        wo.work_order_number as workOrderNumber,
+        wo.party_name as partyName,
+        wo.completed_date as orderCompletedDate,
+        wo.dispatched_by as dispatchedBy,
+        wo.status,
+        wo.gross_weight as storedGrossWeight,
+        wo.net_weight as storedNetWeight,
+        -- Calculate gross weight from all stones (received)
+        COALESCE(
+          (SELECT SUM(s.weight_grams) 
+           FROM stones s 
+           WHERE s.work_order_id = wo.id AND (s.is_received = 1 OR s.is_received IS NULL)), 
+          0
+        ) as calculatedGrossWeight,
+        -- Calculate net weight (gross weight - returned stones)
+        COALESCE(
+          (SELECT SUM(s.weight_grams) 
+           FROM stones s 
+           WHERE s.work_order_id = wo.id AND (s.is_received = 1 OR s.is_received IS NULL)), 
+          0
+        ) - COALESCE(
+          (SELECT SUM(rs.weight_grams) 
+           FROM returned_stones rs 
+           WHERE rs.work_order_id = wo.id), 
+          0
+        ) as calculatedNetWeight,
+        -- Count stones for debugging
+        (SELECT COUNT(*) FROM stones s WHERE s.work_order_id = wo.id) as totalStones,
+        (SELECT COUNT(*) FROM stones s WHERE s.work_order_id = wo.id AND s.is_received = 1) as receivedStones,
+        CASE 
+          WHEN wo.status = 'dispatched' THEN 'dispatched'
+          ELSE 'ready'
+        END as dispatchStatus
+      FROM work_orders wo
+      INNER JOIN worker_assignments wa ON wo.id = wa.work_order_id
+      WHERE wa.stage_type = 'dispatch'
+      ORDER BY 
+        CASE WHEN wo.status = 'completed' THEN 0 ELSE 1 END,
+        wo.created_at DESC
+    `
+
+    const [rows] = await db.execute(query)
+    console.log(`Found ${rows.length} orders assigned to dispatch`)
+
+    const orders = rows.map((row) => {
+      // Use calculated weights if available, otherwise fall back to stored weights
+      const grossWeight = row.calculatedGrossWeight > 0 ? row.calculatedGrossWeight : row.storedGrossWeight || 0
+      const netWeight = row.calculatedNetWeight > 0 ? row.calculatedNetWeight : row.storedNetWeight || 0
+
+      console.log(
+        `Order ${row.workOrderNumber}: Gross=${grossWeight}, Net=${netWeight}, Stones=${row.totalStones}, Received=${row.receivedStones}`,
+      )
+
+      return {
+        id: row.id.toString(),
+        workOrderNumber: row.workOrderNumber,
+        partyName: row.partyName,
+        orderCompletedDate: row.orderCompletedDate,
+        grossWeight: Number.parseFloat(grossWeight) || 0,
+        netWeight: Number.parseFloat(netWeight) || 0,
+        dispatchedBy: row.dispatchedBy || "",
+        status: row.dispatchStatus,
+      }
+    })
+
+    console.log(`Returning ${orders.length} dispatch orders`)
+
+    res.json({
+      success: true,
+      data: orders,
+    })
+  } catch (error) {
+    console.error("Error fetching dispatch assigned orders:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch orders assigned to dispatch",
       error: error.message,
     })
   }
@@ -80,23 +183,12 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
     await connection.beginTransaction()
 
     const workOrderId = req.params.id
-    const {
-      status,
-      updatedBy,
-      notes,
-      completedDate,
-      courierService,
-      trackingNumber,
-      recipientName,
-      deliveryAddress,
-      estimatedDeliveryDate,
-    } = req.body
+    const { orderCompletedDate, dispatchedBy, status } = req.body
 
     console.log(`Updating dispatch status for work order ${workOrderId}:`, {
+      orderCompletedDate,
+      dispatchedBy,
       status,
-      updatedBy,
-      courierService,
-      trackingNumber,
     })
 
     // Check if work order exists
@@ -112,6 +204,17 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
       })
     }
 
+    // Update work order with dispatch information
+    await connection.execute(
+      `UPDATE work_orders 
+       SET completed_date = ?, 
+           dispatched_by = ?, 
+           status = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [orderCompletedDate, dispatchedBy, status, workOrderId],
+    )
+
     // Insert or update dispatch stage
     const [existingStage] = await connection.execute(
       "SELECT id FROM work_order_stages WHERE work_order_id = ? AND stage_name = ?",
@@ -121,23 +224,20 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
     if (existingStage.length > 0) {
       // Update existing dispatch stage
       await connection.execute(
-        `
-        UPDATE work_order_stages 
-        SET status = ?, notes = ?, updated_by = ?, updated_at = NOW(),
-            completed_date = ?
-        WHERE work_order_id = ? AND stage_name = ?
-      `,
-        [status, notes, updatedBy, completedDate, workOrderId, "dispatch"],
+        `UPDATE work_order_stages 
+         SET status = ?, 
+             updated_at = NOW(),
+             jamah_date = ?
+         WHERE work_order_id = ? AND stage_name = ?`,
+        [status, orderCompletedDate, workOrderId, "dispatch"],
       )
     } else {
       // Insert new dispatch stage
       await connection.execute(
-        `
-        INSERT INTO work_order_stages 
-        (work_order_id, stage_name, status, notes, updated_by, created_at, updated_at, completed_date)
-        VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)
-      `,
-        [workOrderId, "dispatch", status, notes, updatedBy, completedDate],
+        `INSERT INTO work_order_stages 
+         (work_order_id, stage_name, status, jamah_date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, NOW(), NOW())`,
+        [workOrderId, "dispatch", status, orderCompletedDate],
       )
     }
 
@@ -149,63 +249,33 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
     if (existingDispatch.length > 0) {
       // Update existing dispatch details
       await connection.execute(
-        `
-        UPDATE dispatch_details 
-        SET courier_service = ?, tracking_number = ?, recipient_name = ?,
-            delivery_address = ?, estimated_delivery_date = ?,
-            dispatch_date = ?, dispatch_notes = ?, updated_at = NOW(),
-            delivery_status = ?
-        WHERE work_order_id = ?
-      `,
-        [
-          courierService,
-          trackingNumber,
-          recipientName,
-          deliveryAddress,
-          estimatedDeliveryDate,
-          completedDate,
-          notes,
-          status === "dispatched" ? "in_transit" : "pending",
-          workOrderId,
-        ],
+        `UPDATE dispatch_details 
+         SET dispatch_date = ?, dispatched_by = ?, dispatch_notes = ?, updated_at = NOW()
+         WHERE work_order_id = ?`,
+        [orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`, workOrderId],
       )
     } else {
       // Insert new dispatch details
       await connection.execute(
-        `
-        INSERT INTO dispatch_details 
-        (work_order_id, courier_service, tracking_number, recipient_name,
-         delivery_address, estimated_delivery_date, dispatch_date, 
-         dispatch_notes, delivery_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-      `,
-        [
-          workOrderId,
-          courierService,
-          trackingNumber,
-          recipientName,
-          deliveryAddress,
-          estimatedDeliveryDate,
-          completedDate,
-          notes,
-          status === "dispatched" ? "in_transit" : "pending",
-        ],
+        `INSERT INTO dispatch_details 
+         (work_order_id, dispatch_date, dispatched_by, dispatch_notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, NOW(), NOW())`,
+        [workOrderId, orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`],
       )
     }
 
     // Log activity
     await connection.execute(
-      `
-      INSERT INTO activity_logs 
-      (work_order_id, stage, action, details, performed_by, created_at)
-      VALUES (?, ?, ?, ?, ?, NOW())
-    `,
+      `INSERT INTO activity_logs 
+       (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         workOrderId,
-        "dispatch",
-        `Status updated to ${status}`,
-        `Dispatch status updated. ${courierService ? `Courier: ${courierService}` : ""} ${trackingNumber ? `Tracking: ${trackingNumber}` : ""}`,
-        updatedBy,
+        workOrderCheck[0].work_order_number,
+        `Order ${status}`,
+        req.user?.name || dispatchedBy,
+        req.user?.role || "dispatcher",
+        `Order ${status} by ${dispatchedBy} on ${orderCompletedDate}`,
       ],
     )
 
@@ -215,12 +285,12 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Dispatch status updated successfully`,
+      message: `Order ${status} successfully`,
       data: {
         workOrderId,
         status,
-        courierService,
-        trackingNumber,
+        dispatchedBy,
+        orderCompletedDate,
       },
     })
   } catch (error) {
@@ -243,85 +313,26 @@ router.get("/statistics", authenticateToken, async (req, res) => {
   try {
     console.log("Fetching dispatch statistics...")
 
-    // Get basic dispatch statistics
-    const [dispatchStats] = await db.execute(`
+    // Get dispatch statistics for orders assigned to dispatch stage
+    const [stats] = await db.execute(`
       SELECT 
-        COUNT(*) as totalDispatched,
-        COUNT(CASE WHEN DATE(ds.dispatch_date) = CURDATE() THEN 1 END) as dispatchedToday,
-        COUNT(CASE WHEN WEEK(ds.dispatch_date) = WEEK(CURDATE()) THEN 1 END) as dispatchedThisWeek,
-        COUNT(CASE WHEN MONTH(ds.dispatch_date) = MONTH(CURDATE()) THEN 1 END) as dispatchedThisMonth,
-        COUNT(CASE WHEN ds.delivery_status = 'delivered' THEN 1 END) as totalDelivered,
-        COUNT(CASE WHEN ds.delivery_status = 'in_transit' THEN 1 END) as inTransit,
-        COUNT(CASE WHEN ds.delivery_status = 'pending' THEN 1 END) as pendingDispatch
-      FROM dispatch_details ds
-      WHERE ds.dispatch_date IS NOT NULL
-    `)
-
-    // Get ready for dispatch count
-    const [readyForDispatch] = await db.execute(`
-      SELECT COUNT(*) as readyForDispatch
+        COUNT(CASE WHEN wo.status = 'completed' THEN 1 END) as totalReady,
+        COUNT(CASE WHEN wo.status = 'dispatched' THEN 1 END) as totalDispatched,
+        COUNT(CASE WHEN wo.status = 'dispatched' AND DATE(wo.completed_date) = CURDATE() THEN 1 END) as dispatchedToday,
+        COUNT(CASE WHEN wo.status = 'dispatched' AND WEEK(wo.completed_date) = WEEK(CURDATE()) THEN 1 END) as dispatchedThisWeek,
+        COUNT(CASE WHEN wo.status = 'dispatched' AND MONTH(wo.completed_date) = MONTH(CURDATE()) THEN 1 END) as dispatchedThisMonth
       FROM work_orders wo
-      INNER JOIN work_order_stages wos ON wo.id = wos.work_order_id
-      WHERE wos.stage_name IN ('polish', 'repair', 'setting', 'framing') 
-        AND wos.status = 'completed'
-        AND wo.id NOT IN (
-          SELECT DISTINCT work_order_id 
-          FROM work_order_stages 
-          WHERE stage_name = 'dispatch' AND status = 'dispatched'
-        )
-    `)
-
-    // Get courier service statistics
-    const [courierStats] = await db.execute(`
-      SELECT 
-        courier_service,
-        COUNT(*) as count,
-        COUNT(CASE WHEN delivery_status = 'delivered' THEN 1 END) as delivered
-      FROM dispatch_details 
-      WHERE courier_service IS NOT NULL
-      GROUP BY courier_service
-      ORDER BY count DESC
-    `)
-
-    // Get recent dispatch activity
-    const [recentActivity] = await db.execute(`
-      SELECT 
-        wo.work_order_number,
-        wo.party_name,
-        ds.courier_service,
-        ds.tracking_number,
-        ds.dispatch_date,
-        ds.delivery_status
-      FROM dispatch_details ds
-      INNER JOIN work_orders wo ON ds.work_order_id = wo.id
-      WHERE ds.dispatch_date IS NOT NULL
-      ORDER BY ds.dispatch_date DESC
-      LIMIT 10
-    `)
-
-    // Get average dispatch time
-    const [avgDispatchTime] = await db.execute(`
-      SELECT 
-        AVG(DATEDIFF(ds.dispatch_date, wo.created_at)) as avgDispatchDays
-      FROM dispatch_details ds
-      INNER JOIN work_orders wo ON ds.work_order_id = wo.id
-      WHERE ds.dispatch_date IS NOT NULL
+      INNER JOIN worker_assignments wa ON wo.id = wa.work_order_id
+      WHERE wa.stage_type = 'dispatch'
+        AND wo.status IN ('completed', 'dispatched')
     `)
 
     const statistics = {
-      overview: {
-        totalDispatched: dispatchStats[0].totalDispatched || 0,
-        dispatchedToday: dispatchStats[0].dispatchedToday || 0,
-        dispatchedThisWeek: dispatchStats[0].dispatchedThisWeek || 0,
-        dispatchedThisMonth: dispatchStats[0].dispatchedThisMonth || 0,
-        totalDelivered: dispatchStats[0].totalDelivered || 0,
-        inTransit: dispatchStats[0].inTransit || 0,
-        pendingDispatch: dispatchStats[0].pendingDispatch || 0,
-        readyForDispatch: readyForDispatch[0].readyForDispatch || 0,
-        avgDispatchDays: Math.round(avgDispatchTime[0].avgDispatchDays || 0),
-      },
-      courierServices: courierStats,
-      recentActivity: recentActivity,
+      totalReady: stats[0].totalReady || 0,
+      totalDispatched: stats[0].totalDispatched || 0,
+      dispatchedToday: stats[0].dispatchedToday || 0,
+      dispatchedThisWeek: stats[0].dispatchedThisWeek || 0,
+      dispatchedThisMonth: stats[0].dispatchedThisMonth || 0,
     }
 
     console.log("Dispatch statistics fetched successfully")
@@ -340,98 +351,53 @@ router.get("/statistics", authenticateToken, async (req, res) => {
   }
 })
 
-// @desc    Get tracking information
-// @route   GET /api/dispatch/tracking/:id
+// @desc    Debug dispatch data
+// @route   GET /api/dispatch/debug
 // @access  Private
-router.get("/tracking/:id", authenticateToken, async (req, res) => {
+router.get("/debug", authenticateToken, async (req, res) => {
   try {
-    const workOrderId = req.params.id
+    // Check worker assignments
+    const [assignments] = await db.execute(`
+      SELECT wa.*, u.name as worker_name, wo.work_order_number
+      FROM worker_assignments wa
+      LEFT JOIN users u ON wa.user_id = u.id
+      LEFT JOIN work_orders wo ON wa.work_order_id = wo.id
+      WHERE wa.stage_type = 'dispatch'
+    `)
 
-    const [trackingInfo] = await db.execute(
-      `
-      SELECT 
-        wo.work_order_number,
-        wo.party_name,
-        wo.product_type,
-        ds.courier_service,
-        ds.tracking_number,
-        ds.dispatch_date,
-        ds.estimated_delivery_date,
-        ds.delivery_date,
-        ds.delivery_status,
-        ds.recipient_name,
-        ds.delivery_address,
-        ds.dispatch_notes
-      FROM dispatch_details ds
-      INNER JOIN work_orders wo ON ds.work_order_id = wo.id
-      WHERE wo.id = ?
-    `,
-      [workOrderId],
-    )
+    // Check work orders
+    const [workOrders] = await db.execute(`
+      SELECT id, work_order_number, party_name, status, gross_weight, net_weight
+      FROM work_orders
+      WHERE status IN ('completed', 'dispatched')
+      LIMIT 10
+    `)
 
-    if (trackingInfo.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Tracking information not found",
-      })
-    }
+    // Check stones data
+    const [stones] = await db.execute(`
+      SELECT s.*, wo.work_order_number
+      FROM stones s
+      LEFT JOIN work_orders wo ON s.work_order_id = wo.id
+      WHERE wo.status IN ('completed', 'dispatched')
+      LIMIT 10
+    `)
 
     res.json({
       success: true,
-      data: trackingInfo[0],
+      data: {
+        assignments: assignments,
+        workOrders: workOrders,
+        stones: stones,
+        assignmentCount: assignments.length,
+        workOrderCount: workOrders.length,
+        stoneCount: stones.length,
+      },
     })
   } catch (error) {
-    console.error("Error fetching tracking information:", error)
+    console.error("Error in debug route:", error)
     res.status(500).json({
       success: false,
-      message: "Failed to fetch tracking information",
-      error: error.message,
-    })
-  }
-})
-
-// @desc    Update delivery status
-// @route   PUT /api/dispatch/delivery-status/:id
-// @access  Private
-router.put("/delivery-status/:id", authenticateToken, async (req, res) => {
-  try {
-    const workOrderId = req.params.id
-    const { deliveryStatus, deliveryDate, deliveryNotes, updatedBy } = req.body
-
-    await db.execute(
-      `
-      UPDATE dispatch_details 
-      SET delivery_status = ?, delivery_date = ?, delivery_notes = ?, updated_at = NOW()
-      WHERE work_order_id = ?
-    `,
-      [deliveryStatus, deliveryDate, deliveryNotes, workOrderId],
-    )
-
-    // Log activity
-    await db.execute(
-      `
-      INSERT INTO activity_logs 
-      (work_order_id, stage, action, details, performed_by, created_at)
-      VALUES (?, ?, ?, ?, ?, NOW())
-    `,
-      [
-        workOrderId,
-        "dispatch",
-        `Delivery status updated to ${deliveryStatus}`,
-        deliveryNotes || `Delivery status updated to ${deliveryStatus}`,
-        updatedBy,
-      ],
-    )
-
-    res.json({
-      success: true,
-      message: "Delivery status updated successfully",
-    })
-  } catch (error) {
-    console.error("Error updating delivery status:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to update delivery status",
+      message: "Debug failed",
       error: error.message,
     })
   }

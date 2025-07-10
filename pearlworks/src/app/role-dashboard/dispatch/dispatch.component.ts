@@ -5,7 +5,7 @@ import  { AssignedWorkOrder, StageUpdateRequest } from "../../auth/interfaces/ro
 import { RoleDashboardService } from "../../auth/interfaces/services/role-dashboard.service"
 import { AuthService } from "../../auth/interfaces/services/auth.service"
 import { Router } from '@angular/router';
-import { DispatchStatistics, TrackingInfo } from "../../auth/interfaces/dispatch.interface"
+import { DispatchStatistics } from "../../auth/interfaces/dispatch.interface"
 
 @Component({
   selector: 'app-dispatch',
@@ -30,7 +30,7 @@ export class DispatchComponent implements OnInit, OnDestroy {
   showStatistics = false
   searchTerm = ""
   statusFilter = "all"
-  selectedTrackingInfo: TrackingInfo | null = null
+  selectedTrackingInfo: any = null // TrackingInfo type does not exist, use any
 
   constructor(
     private roleDashboardService: RoleDashboardService,
@@ -106,7 +106,10 @@ export class DispatchComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           if (response.success) {
-            this.selectedTrackingInfo = response.data
+            // If you want to use tracking info, define a property like:
+            // this.trackingInfo = response.data
+            // For now, just log it
+            console.log('Tracking info:', response.data)
           }
         },
         error: (error) => {
@@ -118,7 +121,8 @@ export class DispatchComponent implements OnInit, OnDestroy {
   }
 
   closeTrackingModal(): void {
-    this.selectedTrackingInfo = null
+    // If you want to clear tracking info, do it here
+    // this.trackingInfo = null
   }
 
   loadReadyToDispatchOrders(): void {

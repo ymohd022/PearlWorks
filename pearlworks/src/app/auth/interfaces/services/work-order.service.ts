@@ -28,6 +28,10 @@ export class WorkOrderService {
     )
   }
 
+  getStoneBalance(workOrderId: string, stage: string = 'setting'): Observable<any> {
+  return this.apiService.getStoneBalance(workOrderId, stage);
+}
+
   // Admin-specific method to get detailed work orders
   getAdminWorkOrders(filters?: WorkOrderFilters): Observable<WorkOrder[]> {
     return this.apiService.getDetailedWorkOrders(filters).pipe(

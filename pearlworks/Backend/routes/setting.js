@@ -6,7 +6,7 @@ const { authenticateToken, authorizeRoles } = require("../middleware/auth")
 const router = express.Router()
 
 // Get assigned work orders for setting
-router.get("/assigned-orders", authenticateToken,  async (req, res) => {
+router.get("/assigned-orders", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id
     const userRole = req.user.role
@@ -34,11 +34,14 @@ router.get("/assigned-orders", authenticateToken,  async (req, res) => {
         wos.approved,
         wos.weight_difference,
         wa.assigned_date,
-        COUNT(DISTINCT s.id) as total_stones,
+        u.name as assigned_worker_name,
+        u.email as assigned_worker_email,
+        COUNT(DISTINCT CASE WHEN s.is_received = 1 THEN s.id END) as total_received_stones,
         COUNT(DISTINCT rs.id) as returned_stones_count
       FROM work_orders wo
       JOIN worker_assignments wa ON wo.id = wa.work_order_id
       LEFT JOIN work_order_stages wos ON wo.id = wos.work_order_id AND wos.stage_name = 'setting'
+      LEFT JOIN users u ON wa.user_id = u.id
       LEFT JOIN stones s ON wo.id = s.work_order_id
       LEFT JOIN returned_stones rs ON wo.id = rs.work_order_id AND rs.stage_name = 'setting'
       WHERE wa.stage_type = 'setting'
@@ -46,21 +49,22 @@ router.get("/assigned-orders", authenticateToken,  async (req, res) => {
 
     const params = []
 
-    // If user is setting worker, only show their assigned orders
     if (userRole === "setting") {
       query += " AND wa.user_id = ?"
       params.push(userId)
     }
 
-    query += " GROUP BY wo.id, wos.id, wa.assigned_date ORDER BY wo.created_at DESC"
+    query += " GROUP BY wo.id, wos.id, wa.assigned_date, u.name, u.email ORDER BY wo.created_at DESC"
 
     const [orders] = await db.execute(query, params)
 
-    // Get stones and returned stones for each work order
     const transformedOrders = await Promise.all(
       orders.map(async (order) => {
-        // Get stones for this work order
-        const [stones] = await db.execute("SELECT * FROM stones WHERE work_order_id = ? ORDER BY id", [order.id])
+        // Get received stones for this work order (including original received stones)
+        const [stones] = await db.execute(
+          "SELECT * FROM stones WHERE work_order_id = ? AND is_received = 1 ORDER BY id",
+          [order.id],
+        )
 
         // Get returned stones for setting stage
         const [returnedStones] = await db.execute(
@@ -90,9 +94,11 @@ router.get("/assigned-orders", authenticateToken,  async (req, res) => {
           weightDifference: order.weight_difference,
           grossWeight: order.gross_weight,
           netWeight: order.net_weight,
+          assignedWorkerName: order.assigned_worker_name,
+          assignedWorkerEmail: order.assigned_worker_email,
           stones: stones,
           returnedStones: returnedStones,
-          totalStones: order.total_stones,
+          totalReceivedStones: order.total_received_stones,
           returnedStonesCount: order.returned_stones_count,
         }
       }),
@@ -111,7 +117,59 @@ router.get("/assigned-orders", authenticateToken,  async (req, res) => {
   }
 })
 
-// Update setting stage status with comprehensive data
+// Get stones for a specific work order - FIXED to include received stones
+router.get("/stones/:workOrderId", authenticateToken, async (req, res) => {
+  try {
+    const { workOrderId } = req.params
+
+    // Get all received stones (original + stage added)
+    const [receivedStones] = await db.execute(
+      `SELECT * FROM stones 
+       WHERE work_order_id = ? AND is_received = 1 
+       ORDER BY stage_added, type`,
+      [workOrderId],
+    )
+
+    // Get returned stones for setting stage
+    const [returnedStones] = await db.execute(
+      `SELECT * FROM returned_stones 
+       WHERE work_order_id = ? AND stage_name = 'setting' 
+       ORDER BY type`,
+      [workOrderId],
+    )
+
+    res.json({
+      success: true,
+      data: {
+        receivedStones: receivedStones.map((stone) => ({
+          id: stone.id,
+          type: stone.type,
+          pieces: stone.pieces,
+          weightGrams: stone.weight_grams,
+          weightCarats: stone.weight_carats,
+          stageAdded: stone.stage_added || "original",
+          isReceived: stone.is_received === 1,
+        })),
+        returnedStones: returnedStones.map((stone) => ({
+          id: stone.id,
+          type: stone.type,
+          pieces: stone.pieces,
+          weightGrams: stone.weight_grams,
+          weightCarats: stone.weight_carats,
+          returnedBy: stone.returned_by,
+        })),
+      },
+    })
+  } catch (error) {
+    console.error("Get stones error:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch stones data",
+    })
+  }
+})
+
+// Update setting stage status with comprehensive stone management
 router.put(
   "/update-status/:workOrderId",
   [
@@ -175,7 +233,6 @@ router.put(
       const currentDate = new Date()
 
       if (existingStage.length > 0) {
-        // Update existing stage
         let updateQuery = `UPDATE work_order_stages SET 
           status = ?, notes = ?, updated_at = ?, sorting_issue = ?, sorting_jamah = ?, 
           approved = ?, weight_difference = ?`
@@ -204,7 +261,6 @@ router.put(
 
         await connection.execute(updateQuery, updateParams)
       } else {
-        // Create new stage
         const issueWeight = workOrder[0].gross_weight || 0
         await connection.execute(
           `INSERT INTO work_order_stages (
@@ -230,17 +286,19 @@ router.put(
         )
       }
 
-      // Update received stones if provided
+      // Update received stones if provided (additional stones added during setting)
       if (receivedStones && Array.isArray(receivedStones)) {
-        // Delete existing received stones
-        await connection.execute("DELETE FROM stones WHERE work_order_id = ? AND is_received = 1", [workOrderId])
+        // Delete existing setting stage stones
+        await connection.execute("DELETE FROM stones WHERE work_order_id = ? AND stage_added = 'setting'", [
+          workOrderId,
+        ])
 
-        // Insert new received stones
+        // Insert new received stones for setting stage
         for (const stone of receivedStones) {
-          if (stone.type && stone.pieces > 0) {
+          if (stone.type && stone.pieces >= 0) {
             await connection.execute(
-              `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received)
-               VALUES (?, ?, ?, ?, ?, 1)`,
+              `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received, stage_added)
+               VALUES (?, ?, ?, ?, ?, 1, 'setting')`,
               [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats],
             )
           }
@@ -249,14 +307,12 @@ router.put(
 
       // Update returned stones if provided
       if (returnedStones && Array.isArray(returnedStones)) {
-        // Delete existing returned stones for this stage
         await connection.execute("DELETE FROM returned_stones WHERE work_order_id = ? AND stage_name = 'setting'", [
           workOrderId,
         ])
 
-        // Insert new returned stones
         for (const stone of returnedStones) {
-          if (stone.type && stone.pieces > 0) {
+          if (stone.type && stone.pieces >= 0) {
             await connection.execute(
               `INSERT INTO returned_stones (work_order_id, stage_name, type, pieces, weight_grams, weight_carats, returned_by)
                VALUES (?, 'setting', ?, ?, ?, ?, ?)`,
@@ -266,7 +322,6 @@ router.put(
         }
       }
 
-      // Add activity log
       await connection.execute(
         `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -331,8 +386,10 @@ router.get(
         })
       }
 
-      // Get stones and returned stones
-      const [stones] = await db.execute("SELECT * FROM stones WHERE work_order_id = ?", [workOrderId])
+      // Get all received stones (original + setting added)
+      const [stones] = await db.execute("SELECT * FROM stones WHERE work_order_id = ? AND is_received = 1", [
+        workOrderId,
+      ])
 
       const [returnedStones] = await db.execute(
         "SELECT * FROM returned_stones WHERE work_order_id = ? AND stage_name = 'setting'",

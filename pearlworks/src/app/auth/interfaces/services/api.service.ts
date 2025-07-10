@@ -27,6 +27,13 @@ export class ApiService {
     return this.http.post(`${this.apiUrl}/data`, data, { headers: this.getHeaders() })
   }
 
+  getStoneBalance(workOrderId: string, stage: string): Observable<any> {
+  return this.http.get(`${this.apiUrl}/work-orders/${workOrderId}/stone-balance`, {
+    headers: this.getHeaders(),
+    params: { stage }
+  });
+}
+
   updateData(id: string, data: any): Observable<any> {
     return this.http.put(`${this.apiUrl}/data/${id}`, data, { headers: this.getHeaders() })
   }
@@ -128,6 +135,17 @@ export class ApiService {
     })
   }
 
+  getDispatchReadyOrders(): Observable<any>
+{
+  return this.http.get(`${this.apiUrl}/dispatch/ready-orders`, {
+    headers: this.getHeaders(),
+  });
+}
+
+
+
+
+
   // Add this method to ApiService
 updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<any> {
   // Handle image uploads separately
@@ -163,6 +181,31 @@ updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<an
     updateRequest, 
     { headers: this.getHeaders() }
   );
+}
+
+getDispatchAssignedOrders(): Observable<any>
+{
+  return this.http.get(`${this.apiUrl}/dispatch/assigned-orders`, {
+    headers: this.getHeaders(),
+  });
+}
+
+updateDispatchStatus(orderId: string, updateRequest: any): Observable<any>
+{
+  return this.http.put(
+    `${this.apiUrl}/dispatch/update-status/${orderId}`, 
+    updateRequest, 
+    {
+      headers: this.getHeaders(),
+    }
+  );
+}
+
+getDispatchStatistics(): Observable<any>
+{
+  return this.http.get(`${this.apiUrl}/dispatch/statistics`, {
+    headers: this.getHeaders(),
+  });
 }
 
   getManagerStatistics(): Observable<any> {
@@ -348,11 +391,11 @@ updateManagerStageStatus(workOrderId: string, updateRequest: any): Observable<an
   }
 
   // Dispatch endpoints
-  getDispatchStatistics(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/dispatch/statistics`, {
-      headers: this.getHeaders(),
-    })
-  }
+  // getDispatchStatistics(): Observable<any> {
+  //   return this.http.get(`${this.apiUrl}/dispatch/statistics`, {
+  //     headers: this.getHeaders(),
+  //   })
+  // }
 
   getTrackingInfo(workOrderId: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/dispatch/tracking/${workOrderId}`, {

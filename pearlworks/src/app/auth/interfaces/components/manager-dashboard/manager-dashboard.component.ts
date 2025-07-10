@@ -15,7 +15,8 @@ import { RoleDashboardService } from "../../services/role-dashboard.service"
 import { AutocompleteService } from "../../services/autocomplete.service"
 import { AutocompleteOption } from "../../services/autocomplete.service"
 import { ApiService } from "../../services/api.service"
-
+import { DispatchOrder, DispatchStatistics, DispatchUpdateRequest } from "../../dispatch.interface"
+import { DispatchService } from "../../services/dispatch.service"
 @Component({
   selector: 'app-manager-dashboard',
   standalone: false,
@@ -25,13 +26,30 @@ import { ApiService } from "../../services/api.service"
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Tab management
   selectedTabIndex = 0
-expandedState: { [orderId: string]: boolean } = {};
+  expandedState: { [orderId: string]: boolean } = {}
   // Forms
   createOrderForm!: FormGroup
   assignmentForm!: FormGroup
   stageUpdateForm!: FormGroup
   settingsForm!: FormGroup
-  originalStones: any[] = [];
+  dispatchForm!: FormGroup
+  orders: DispatchOrder[] = []
+  // Add displayedColumns for dispatch table
+  displayedColumns: string[] = [
+    'workOrderNumber',
+    'partyName',
+    'orderCompletedDate',
+    'grossWeight',
+    'netWeight',
+    'status',
+    'actions',
+  ]
+  statistics: DispatchStatistics | null = null
+  selectedOrder: DispatchOrder | null = null
+  originalStones: any[] = []
+  originalReceivedStones: any[] = []
+  receivedStonesTotal = { grams: 0, carats: 0 }
+  stonesDifference = { grams: 0, carats: 0 }
 
   // Data
   workOrders: WorkOrder[] = []
@@ -73,10 +91,14 @@ expandedState: { [orderId: string]: boolean } = {};
   updateImages: File[] = []
   updateImagePreviewUrls: string[] = []
 
-   receivedStonesTotal = { grams: 0, carats: 0 }
+  // Updated stone balance properties to match new API response
+  originalReceivedStonesTotal = { grams: 0, carats: 0 }
+  stageAddedStonesTotal = { grams: 0, carats: 0 }
+  totalReceivedStonesTotal = { grams: 0, carats: 0 }
   returnedStonesTotal = { grams: 0, carats: 0 }
-  stonesDifference = { grams: 0, carats: 0 }
   remainingStones = { grams: 0, carats: 0 }
+  stoneBalance: any = null
+  stoneDetails: any[] = []
 
   private destroy$ = new Subject<void>()
 
@@ -84,6 +106,7 @@ expandedState: { [orderId: string]: boolean } = {};
     private fb: FormBuilder,
     private workOrderService: WorkOrderService,
     private roleDashboardService: RoleDashboardService,
+    private dispatchService: DispatchService,
     private router: Router,
     private authService: AuthService,
     private apiservice: ApiService,
@@ -96,6 +119,8 @@ expandedState: { [orderId: string]: boolean } = {};
     this.loadWorkers()
     this.loadStageData()
     this.setupDateSubscriptions()
+     this.loadOrders()
+    this.loadStatistics()
   }
 
   ngOnDestroy(): void {
@@ -139,139 +164,180 @@ expandedState: { [orderId: string]: boolean } = {};
       updateImages: [[]],
     })
 
+     this.dispatchForm = this.fb.group({
+      orderCompletedDate: ["", Validators.required],
+      dispatchedBy: ["", [Validators.required, Validators.minLength(2)]],
+    })
+
     this.addStoneRow()
     this.generateWorkOrderNumber()
-
   }
+  loadOrders(): void {
+    this.loading = true
+    // Use dispatch service to get orders assigned to dispatch stage
+    this.dispatchService
+      .getAssignedOrders()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.orders = response.data || []
+          this.loading = false
+        },
+        error: (error) => {
+          console.error("Error loading dispatch orders:", error)
+          this.errorMessage = "Failed to load dispatch orders"
+          this.loading = false
+          this.clearMessages()
+        },
+      })
+  }
+
+  loadStatistics(): void {
+    this.dispatchService
+      .getStatistics()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.statistics = response.data
+        },
+        error: (error) => {
+          console.error("Error loading statistics:", error)
+        },
+      })
+  }
+
+    openDispatchModal(order: DispatchOrder): void {
+    this.selectedOrder = order
+    this.dispatchForm.patchValue({
+      orderCompletedDate: this.formatDateForInput(order.orderCompletedDate),
+      dispatchedBy: "",
+    })
+  }
+
+  closeDispatchModal(): void {
+    this.selectedOrder = null
+    this.dispatchForm.reset()
+  }
+
+  onSubmitDispatch(): void {
+    if (this.dispatchForm.invalid || !this.selectedOrder) {
+      this.markFormGroupTouched(this.dispatchForm)
+      return
+    }
+
+    this.submitting = true
+    this.clearMessages()
+
+    const updateRequest: DispatchUpdateRequest = {
+      orderCompletedDate: this.dispatchForm.value.orderCompletedDate,
+      dispatchedBy: this.dispatchForm.value.dispatchedBy,
+      status: "dispatched",
+    }
+
+    this.dispatchService
+      .updateDispatchStatus(this.selectedOrder.id, updateRequest)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.successMessage = `Order ${this.selectedOrder?.workOrderNumber} dispatched successfully!`
+          this.closeDispatchModal()
+          this.loadOrders()
+          this.loadStatistics()
+          this.submitting = false
+          this.clearMessages()
+        },
+        error: (error) => {
+          console.error("Error dispatching order:", error)
+          this.errorMessage = "Failed to dispatch order. Please try again."
+          this.submitting = false
+          this.clearMessages()
+        },
+      })
+  }
+
+   private formatDateForInput(date: Date | string): string {
+    if (!date) return ""
+    const d = new Date(date)
+    return d.toISOString().split("T")[0]
+  }
+
 
 
   onPartyNameSelected(option: AutocompleteOption): void {
     console.log("Party name selected:", option)
-    // You can add additional logic here if needed
+  }
+   getStatusClass(status: string): string {
+    return status === "dispatched" ? "status-dispatched" : "status-ready"
   }
 
-    // Settings Tab Stone Management Methods
-  get settingsReceivedStones(): FormArray {
-    return this.settingsForm.get("receivedStones") as FormArray
-  }
-
-  get settingsReturnedStones(): FormArray {
-    return this.settingsForm.get("returnedStones") as FormArray
-  }
-
-  addSettingsReceivedStone(): void {
-    const stoneGroup = this.fb.group({
-      type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(1)]],
-      weightGrams: [0, [Validators.required, Validators.min(0.001)]],
-      weightCarats: [0, [Validators.required, Validators.min(0.001)]],
-    })
-    this.settingsReceivedStones.push(stoneGroup)
-    this.calculateStonesTotals()
-  }
-
-  removeSettingsReceivedStone(index: number): void {
-    if (this.settingsReceivedStones.length > 1) {
-      this.settingsReceivedStones.removeAt(index)
-      this.calculateStonesTotals()
-    }
-  }
-
-  addSettingsReturnedStone(): void {
-    const stoneGroup = this.fb.group({
-      type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(1)]],
-      weightGrams: [0, [Validators.required, Validators.min(0.001)]],
-      weightCarats: [0, [Validators.required, Validators.min(0.001)]],
-    })
-    this.settingsReturnedStones.push(stoneGroup)
-    this.calculateStonesTotals()
-  }
-
-  removeSettingsReturnedStone(index: number): void {
-    if (this.settingsReturnedStones.length > 1) {
-      this.settingsReturnedStones.removeAt(index)
-      this.calculateStonesTotals()
-    }
-  }
-
-  onSettingsReceivedWeightGramsChange(index: number, event: any): void {
-    const value = parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
-    const stoneControl = this.settingsReceivedStones.at(index)
-    
-    stoneControl.patchValue({
-      weightCarats: parseFloat(carats)
-    }, { emitEvent: false })
-    
-    this.calculateStonesTotals()
-  }
-
-  onSettingsReceivedWeightCaratsChange(index: number, event: any): void {
-    const value = parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
-    const stoneControl = this.settingsReceivedStones.at(index)
-    
-    stoneControl.patchValue({
-      weightGrams: parseFloat(grams)
-    }, { emitEvent: false })
-    
-    this.calculateStonesTotals()
-  }
-
-  onSettingsReturnedWeightGramsChange(index: number, event: any): void {
-    const value = parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
-    const stoneControl = this.settingsReturnedStones.at(index)
-    
-    stoneControl.patchValue({
-      weightCarats: parseFloat(carats)
-    }, { emitEvent: false })
-    
-    this.calculateStonesTotals()
-  }
-
-  onSettingsReturnedWeightCaratsChange(index: number, event: any): void {
-    const value = parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
-    const stoneControl = this.settingsReturnedStones.at(index)
-    
-    stoneControl.patchValue({
-      weightGrams: parseFloat(grams)
-    }, { emitEvent: false })
-    
-    this.calculateStonesTotals()
-  }
-
+  // Updated stone balance calculation methods to consider received stones properly
   calculateStonesTotals(): void {
-    // Calculate received stones total
-    this.receivedStonesTotal = this.settingsReceivedStones.controls.reduce(
+    // Calculate additional stones added during setting stage
+    this.stageAddedStonesTotal = this.receivedStones.controls.reduce(
       (total, stone) => ({
-        grams: total.grams + (stone.get('weightGrams')?.value || 0),
-        carats: total.carats + (stone.get('weightCarats')?.value || 0)
+        grams: total.grams + (stone.get("weightGrams")?.value || 0),
+        carats: total.carats + (stone.get("weightCarats")?.value || 0),
       }),
-      { grams: 0, carats: 0 }
+      { grams: 0, carats: 0 },
     )
 
     // Calculate returned stones total
-    this.returnedStonesTotal = this.settingsReturnedStones.controls.reduce(
+    this.returnedStonesTotal = this.returnedStones.controls.reduce(
       (total, stone) => ({
-        grams: total.grams + (stone.get('weightGrams')?.value || 0),
-        carats: total.carats + (stone.get('weightCarats')?.value || 0)
+        grams: total.grams + (stone.get("weightGrams")?.value || 0),
+        carats: total.carats + (stone.get("weightCarats")?.value || 0),
       }),
-      { grams: 0, carats: 0 }
+      { grams: 0, carats: 0 },
     )
 
-    // Calculate difference (received - returned)
-    this.stonesDifference = {
-      grams: this.receivedStonesTotal.grams - this.returnedStonesTotal.grams,
-      carats: this.receivedStonesTotal.carats - this.returnedStonesTotal.carats
+    // Calculate original received stones weight (from work order creation)
+    this.originalReceivedStonesTotal = this.originalReceivedStones.reduce(
+      (total, stone) => ({
+        grams: total.grams + (stone.weightGrams || 0),
+        carats: total.carats + (stone.weightCarats || 0),
+      }),
+      { grams: 0, carats: 0 },
+    )
+
+    // Calculate total received stones (original + stage added)
+    this.totalReceivedStonesTotal = {
+      grams: this.originalReceivedStonesTotal.grams + this.stageAddedStonesTotal.grams,
+      carats: this.originalReceivedStonesTotal.carats + this.stageAddedStonesTotal.carats,
     }
 
-    // Remaining stones is the same as difference
-    this.remainingStones = { ...this.stonesDifference }
+    // Calculate remaining stones (total received - returned)
+    this.remainingStones = {
+      grams: this.totalReceivedStonesTotal.grams - this.returnedStonesTotal.grams,
+      carats: this.totalReceivedStonesTotal.carats - this.returnedStonesTotal.carats,
+    }
+
+    // Update weight difference in form
+    this.stageUpdateForm.patchValue({
+      weightDifference: Number.parseFloat(this.remainingStones.grams.toFixed(3)),
+    })
   }
 
+  // Load stone balance data - Updated to handle new API response structure
+  loadStoneBalance(workOrderId: string, stage = "setting"): void {
+    this.workOrderService.getStoneBalance(workOrderId, stage).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.stoneBalance = response.data.summary
+          this.stoneDetails = response.data.stoneDetails
+
+          // Update totals for display using new API structure
+          this.originalReceivedStonesTotal = this.stoneBalance.originalReceivedStones
+          this.stageAddedStonesTotal = this.stoneBalance.stageAddedStones
+          this.totalReceivedStonesTotal = this.stoneBalance.totalReceivedStones
+          this.returnedStonesTotal = this.stoneBalance.returnedStones
+          this.remainingStones = this.stoneBalance.remainingStones
+        }
+      },
+      error: (error) => {
+        console.error("Error loading stone balance:", error)
+      },
+    })
+  }
 
   // Generate auto work order number
   generateWorkOrderNumber(): void {
@@ -283,7 +349,6 @@ expandedState: { [orderId: string]: boolean } = {};
       },
       error: (error) => {
         console.error("Error generating work order number:", error)
-        // Fallback to timestamp-based number
         const timestamp = Date.now().toString().slice(-4)
         this.createOrderForm.patchValue({
           workOrderNumber: `AB${timestamp}`,
@@ -311,11 +376,10 @@ expandedState: { [orderId: string]: boolean } = {};
   }
 
   onCameraCapture(): void {
-    // Create a file input for camera capture
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "image/*"
-    input.capture = "environment" // Use rear camera
+    input.capture = "environment"
     input.onchange = (event: any) => {
       const files = event.target.files
       if (files) {
@@ -325,15 +389,12 @@ expandedState: { [orderId: string]: boolean } = {};
     input.click()
   }
 
-  
-
   private processSelectedFiles(files: FileList): void {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (file.type.startsWith("image/")) {
         this.selectedImages.push(file)
 
-        // Create preview URL
         const reader = new FileReader()
         reader.onload = (e: any) => {
           this.imagePreviewUrls.push(e.target.result)
@@ -342,7 +403,6 @@ expandedState: { [orderId: string]: boolean } = {};
       }
     }
 
-    // Update form control
     this.createOrderForm.patchValue({
       images: this.selectedImages,
     })
@@ -356,7 +416,7 @@ expandedState: { [orderId: string]: boolean } = {};
     })
   }
 
-  // Data Loading - FIXED with error handling
+  // Data Loading
   loadWorkOrders(): void {
     this.loading = true
     this.workOrderService
@@ -370,7 +430,7 @@ expandedState: { [orderId: string]: boolean } = {};
         error: (error) => {
           console.error("Error loading work orders:", error)
           this.errorMessage = "Failed to load work orders"
-          this.workOrders = [] // Initialize as empty array
+          this.workOrders = []
           this.loading = false
           this.clearMessages()
         },
@@ -388,7 +448,7 @@ expandedState: { [orderId: string]: boolean } = {};
         error: (error) => {
           console.error("Error loading workers:", error)
           this.errorMessage = "Failed to load workers"
-          this.workers = [] // Initialize as empty array
+          this.workers = []
           this.clearMessages()
         },
       })
@@ -400,7 +460,6 @@ expandedState: { [orderId: string]: boolean } = {};
     })
   }
 
-  // FIXED with proper error handling
   loadStageOrders(stage: StageType): void {
     this.roleDashboardService
       .getAssignedWorkOrders(stage)
@@ -411,8 +470,7 @@ expandedState: { [orderId: string]: boolean } = {};
         },
         error: (error) => {
           console.error(`Error loading ${stage} orders:`, error)
-          this.stageWorkOrders[stage] = [] // Initialize as empty array
-          // Don't show error message for individual stage loading failures
+          this.stageWorkOrders[stage] = []
         },
       })
   }
@@ -438,19 +496,21 @@ expandedState: { [orderId: string]: boolean } = {};
     return this.stageUpdateForm.get("returnedStones") as FormArray
   }
 
-  loadOriginalStones(workOrderId: string): void {
+  // Updated to load original received stones (is_received = 1)
+  loadOriginalReceivedStones(workOrderId: string): void {
     this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
-        next: (response) => {
-            if (response.success && response.data) {
-                this.originalStones = response.data.stones || [];
-            }
-        },
-        error: (error) => {
-            console.error("Error loading stones:", error);
-            this.originalStones = [];
+      next: (response) => {
+        if (response.success && response.data) {
+          // Filter only received stones from work order creation
+          this.originalReceivedStones = (response.data.stones || []).filter((stone: any) => stone.isReceived)
         }
-    });
-}
+      },
+      error: (error) => {
+        console.error("Error loading original received stones:", error)
+        this.originalReceivedStones = []
+      },
+    })
+  }
 
   // Stone Management
   addStoneRow(): void {
@@ -498,12 +558,9 @@ expandedState: { [orderId: string]: boolean } = {};
   }
 
   private formatDateForBackend(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
+    return date.toISOString().split("T")[0]
+  }
 
-
-
-  // FIXED with null check
   getWorkersByStage(stageType: string): Worker[] {
     if (!this.workers || !Array.isArray(this.workers)) {
       return []
@@ -523,7 +580,6 @@ expandedState: { [orderId: string]: boolean } = {};
 
     const formValue = this.createOrderForm.getRawValue()
 
-    // Create the request object with proper file handling
     const createRequest: CreateWorkOrderRequest = {
       workOrderNumber: formValue.workOrderNumber,
       partyName: formValue.partyName,
@@ -532,15 +588,13 @@ expandedState: { [orderId: string]: boolean } = {};
       itemDetails: formValue.itemDetails,
       modelNumber: formValue.modelNumber,
       descriptionOfWork: formValue.descriptionOfWork,
-       expectedCompletionDate: formValue.expectedCompletionDate 
-    ? this.formatDateForBackend(formValue.expectedCompletionDate) 
-    : undefined, // Keep as string
-      images: this.selectedImages, // Pass the actual File objects
+      expectedCompletionDate: formValue.expectedCompletionDate
+        ? this.formatDateForBackend(formValue.expectedCompletionDate)
+        : undefined,
+      images: this.selectedImages,
       stones: formValue.stones || [],
       assignedWorkers: formValue.assignedWorkers || [],
     }
-
-    console.log("Creating work order with images:", this.selectedImages.length)
 
     this.workOrderService
       .createWorkOrder(createRequest)
@@ -562,7 +616,6 @@ expandedState: { [orderId: string]: boolean } = {};
       })
   }
 
-  // Reset form after successful creation
   resetForm(): void {
     this.createOrderForm.reset()
     this.stones.clear()
@@ -652,9 +705,9 @@ expandedState: { [orderId: string]: boolean } = {};
   openStageUpdateModal(order: any, stage: StageType): void {
     this.selectedStageOrder = order
     this.selectedStage = stage
-this.loadOriginalStones(order.id);
-this.originalStones = [];
-  this.addedStones.clear();
+    this.loadOriginalReceivedStones(order.id)
+    this.originalReceivedStones = []
+
     this.stageUpdateForm.patchValue({
       status: order.status || "not-started",
       jamahWeight: order.jamahWeight || 0,
@@ -666,19 +719,15 @@ this.originalStones = [];
       jamahDate: order.jamahDate || "",
     })
 
-    // Clear and reset form arrays
-    // this.addedStones.clear()
     this.updateImages = []
     this.updateImagePreviewUrls = []
 
-    // Add default stone if none exist
-
-    // Load stones for setting stage
+    // Load stones for setting stage and calculate balance
     if (stage === "setting") {
       this.loadSettingStones(order.id)
+      this.loadStoneBalance(order.id, stage)
     }
 
-    // Calculate initial stone balance
     this.calculateStoneBalance()
   }
 
@@ -700,31 +749,8 @@ this.originalStones = [];
       issueDate: formValue.issueDate,
       jamahDate: formValue.jamahDate,
       updateImages: this.updateImages,
-      // Include uploaded images
-    };
-    this.apiservice.updateManagerStageStatus(
-    this.selectedStageOrder.id, 
-    updateRequest
-  ).pipe(takeUntil(this.destroy$)).subscribe({
-    next: (response) => {
-      this.successMessage = response.message || "Stage updated successfully";
-      this.selectedStageOrder = null;
-      this.loadStageOrders(this.selectedStage);
-      this.updatingStage = false;
-      this.clearMessages();
-    },
-    error: (error) => {
-      console.error("Error updating stage:", error);
-      this.errorMessage = error.error?.message || "Failed to update stage";
-      this.updatingStage = false;
-      this.clearMessages();
     }
-  });
 
-    // Include stones data for framing stage
-  if (this.selectedStage === "framing") {
-    updateRequest.addedStones = [];
-  }
     // Include stones data for setting stage
     if (this.selectedStage === "setting") {
       updateRequest.receivedStones = this.receivedStones.value
@@ -732,14 +758,12 @@ this.originalStones = [];
       updateRequest.weightDifference = this.stageUpdateForm.get("weightDifference")?.value
     }
 
-    console.log("Submitting stage update with images:", this.updateImages.length)
-
-    this.roleDashboardService
+    this.apiservice
       .updateManagerStageStatus(this.selectedStageOrder.id, updateRequest)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.successMessage = response.message
+          this.successMessage = response.message || "Stage updated successfully"
           this.selectedStageOrder = null
           this.loadStageOrders(this.selectedStage)
           this.updatingStage = false
@@ -747,7 +771,7 @@ this.originalStones = [];
         },
         error: (error) => {
           console.error("Error updating stage:", error)
-          this.errorMessage = "Failed to update stage. Please try again."
+          this.errorMessage = error.error?.message || "Failed to update stage"
           this.updatingStage = false
           this.clearMessages()
         },
@@ -759,9 +783,10 @@ this.originalStones = [];
     this.stageUpdateForm.reset()
     this.receivedStones.clear()
     this.returnedStones.clear()
-    this.addedStones.clear()
     this.updateImages = []
     this.updateImagePreviewUrls = []
+    this.stoneBalance = null
+    this.stoneDetails = []
   }
 
   // Utility Methods
@@ -807,7 +832,6 @@ this.originalStones = [];
     })
   }
 
-  // FIXED with null checks
   calculateProgress(workOrder: WorkOrder): number {
     if (!workOrder.stages || workOrder.stages.length === 0) return 0
     const completedStages = workOrder.stages.filter((stage) => stage.status === "completed").length
@@ -827,34 +851,33 @@ this.originalStones = [];
   // Stone weight conversion methods
   onWeightGramsChange(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3) // Carats = Grams × 5
+    const carats = (value * 5).toFixed(3)
     const stoneControl = this.stones.at(index)
     stoneControl.patchValue({ weightCarats: Number.parseFloat(carats) }, { emitEvent: false })
   }
 
   onWeightCaratsChange(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3) // Grams = Carats ÷ 5
+    const grams = (value / 5).toFixed(3)
     const stoneControl = this.stones.at(index)
     stoneControl.patchValue({ weightGrams: Number.parseFloat(grams) }, { emitEvent: false })
   }
 
   private setupDateSubscriptions(): void {
-    // Auto-set expected completion date to 1 week from PO date
     this.createOrderForm
       .get("poDate")
       ?.valueChanges.pipe(takeUntil(this.destroy$))
       .subscribe((poDate) => {
         if (poDate) {
           const expectedDate = new Date(poDate)
-          expectedDate.setDate(expectedDate.getDate() + 7) // Add 1 week
+          expectedDate.setDate(expectedDate.getDate() + 7)
           this.createOrderForm.patchValue({ expectedCompletionDate: expectedDate }, { emitEvent: false })
         }
       })
   }
 
-  formatWeight(value: number): string {
-    return value ? value.toFixed(3) : "0.000"
+  formatWeight(value: number | undefined): string {
+    return typeof value === "number" && !isNaN(value) ? value.toFixed(3) : "0.000"
   }
 
   logout(): void {
@@ -863,44 +886,46 @@ this.originalStones = [];
   }
 
   toggleOrderDetails(orderId: string): void {
-  this.expandedState[orderId] = !this.expandedState[orderId];
-}
+    this.expandedState[orderId] = !this.expandedState[orderId]
+  }
 
-isExpanded(orderId: string): boolean {
-  return this.expandedState[orderId];
-}
+  isExpanded(orderId: string): boolean {
+    return this.expandedState[orderId]
+  }
 
-  // Setting-specific stone management
+  // Setting-specific stone management - Updated for received stones
   addReceivedStone(): void {
     const stoneGroup = this.fb.group({
       type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(1)]],
-      weightGrams: [0, [Validators.required, Validators.min(0.001)]],
-      weightCarats: [0, [Validators.required, Validators.min(0.001)]],
+      pieces: [0, [Validators.required, Validators.min(0)]],
+      weightGrams: [0, [Validators.required, Validators.min(0)]],
+      weightCarats: [0, [Validators.required, Validators.min(0)]],
     })
     this.receivedStones.push(stoneGroup)
+    this.calculateStonesTotals()
   }
 
   removeReceivedStone(index: number): void {
     if (this.receivedStones.length > 1) {
       this.receivedStones.removeAt(index)
-      this.calculateWeightDifference()
+      this.calculateStonesTotals()
     }
   }
 
   addReturnedStone(): void {
     const stoneGroup = this.fb.group({
       type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(1)]],
-      weightGrams: [0, [Validators.required, Validators.min(0.001)]],
-      weightCarats: [0, [Validators.required, Validators.min(0.001)]],
+      pieces: [0, [Validators.required, Validators.min(0)]],
+      weightGrams: [0, [Validators.required, Validators.min(0)]],
+      weightCarats: [0, [Validators.required, Validators.min(0)]],
     })
     this.returnedStones.push(stoneGroup)
+    this.calculateStonesTotals()
   }
 
   removeReturnedStone(index: number): void {
     this.returnedStones.removeAt(index)
-    this.calculateWeightDifference()
+    this.calculateStonesTotals()
   }
 
   // Weight conversion for setting stones
@@ -917,7 +942,7 @@ isExpanded(orderId: string): boolean {
       { emitEvent: false },
     )
 
-    this.calculateWeightDifference()
+    this.calculateStonesTotals()
   }
 
   onSettingWeightCaratsChange(index: number, event: any, isReceived = true): void {
@@ -933,7 +958,7 @@ isExpanded(orderId: string): boolean {
       { emitEvent: false },
     )
 
-    this.calculateWeightDifference()
+    this.calculateStonesTotals()
   }
 
   // Calculate weight difference between received and returned stones
@@ -952,18 +977,18 @@ isExpanded(orderId: string): boolean {
     })
   }
 
-  // Load stones data for setting stage
+  // Load stones data for setting stage - Updated to handle received stones properly
   loadSettingStones(workOrderId: string): void {
     this.roleDashboardService.getStones(workOrderId).subscribe({
       next: (response) => {
         if (response.success && response.data) {
-          // Clear existing stones
           this.receivedStones.clear()
           this.returnedStones.clear()
 
-          // Load received stones
+          // Load additional stones added during setting stage
           if (response.data.receivedStones) {
-            response.data.receivedStones.forEach((stone: any) => {
+            const settingStones = response.data.receivedStones.filter((stone: any) => stone.stageAdded === "setting")
+            settingStones.forEach((stone: any) => {
               const stoneGroup = this.fb.group({
                 type: [stone.type],
                 pieces: [stone.pieces],
@@ -974,7 +999,6 @@ isExpanded(orderId: string): boolean {
             })
           }
 
-          // Load returned stones
           if (response.data.returnedStones) {
             response.data.returnedStones.forEach((stone: any) => {
               const stoneGroup = this.fb.group({
@@ -987,7 +1011,6 @@ isExpanded(orderId: string): boolean {
             })
           }
 
-          // Ensure at least one stone in each array
           if (this.receivedStones.length === 0) {
             this.addReceivedStone()
           }
@@ -995,19 +1018,16 @@ isExpanded(orderId: string): boolean {
             this.addReturnedStone()
           }
 
-          this.calculateWeightDifference()
+          this.calculateStonesTotals()
         }
       },
       error: (error) => {
         console.error("Error loading stones:", error)
-        // Add default stones if loading fails
         this.addReceivedStone()
         this.addReturnedStone()
       },
     })
   }
-
-  // Add these methods after the existing methods:
 
   // View Detail Modal Methods
   openDetailModal(order: any): void {
@@ -1024,7 +1044,6 @@ isExpanded(orderId: string): boolean {
     this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
       next: (response) => {
         if (response.success && response.data) {
-          // Handle images - they should already be full URLs from the backend
           this.detailImages = response.data.images || []
           console.log("Loaded images for work order:", this.detailImages)
         }
@@ -1083,18 +1102,16 @@ isExpanded(orderId: string): boolean {
   }
 
   calculateStoneBalance(): void {
-    // Calculate total received stones from original work order
-    const originalStones = this.selectedStageOrder?.stones || []
-    const receivedTotal = originalStones.reduce((total: number, stone: any) => {
+    // Calculate balance including original received stones
+    const originalReceivedTotal = this.originalReceivedStones.reduce((total: number, stone: any) => {
       return total + (stone.weightGrams || 0)
     }, 0)
 
-    // Calculate total added stones
     const addedTotal = this.addedStones.controls.reduce((total, stone) => {
       return total + (stone.get("weightGrams")?.value || 0)
     }, 0)
 
-    const balance = receivedTotal + addedTotal
+    const balance = originalReceivedTotal + addedTotal
     this.stageUpdateForm.patchValue({
       stoneBalance: Number.parseFloat(balance.toFixed(3)),
     })

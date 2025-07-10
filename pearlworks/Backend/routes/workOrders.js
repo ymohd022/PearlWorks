@@ -6,13 +6,11 @@ const upload = require("../middleware/upload")
 const fs = require("fs")
 const path = require("path")
 const multer = require("multer")
-// Get next work order number - NEW ENDPOINT
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = path.join(__dirname, "../uploads")
-    // Create the directory if it doesn't exist
     fs.mkdirSync(uploadPath, { recursive: true })
     cb(null, uploadPath)
   },
@@ -22,18 +20,14 @@ const storage = multer.diskStorage({
   },
 })
 
-// const upload = multer({ storage: storage })
-
 router.get("/next-number", authenticateToken, async (req, res) => {
   try {
-    // Get the latest work order number
     const [rows] = await db.execute("SELECT work_order_number FROM work_orders ORDER BY id DESC LIMIT 1")
 
     let nextNumber = "WO001"
 
     if (rows.length > 0 && rows[0].work_order_number) {
       const lastNumber = rows[0].work_order_number
-      // Extract number from WO001, WO002, etc.
       const match = lastNumber.match(/WO(\d+)/)
       if (match) {
         const lastNum = Number.parseInt(match[1])
@@ -90,7 +84,7 @@ router.get("/", authenticateToken, async (req, res) => {
       netWeight: order.net_weight || 0,
       dispatchedBy: order.dispatched_by,
       stages: parseStagesInfo(order.stages_info),
-      stones: [], // Will be populated separately if needed
+      stones: [],
       assignedWorkers: parseAssignmentsInfo(order.assignments_info),
     }))
 
@@ -108,7 +102,195 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 })
 
-// Create a new work order with file upload support - FIXED
+// Get stone balance summary for a work order - FIXED to properly consider received stones
+router.get("/:id/stone-balance", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { stage = "setting" } = req.query
+
+    // Get comprehensive stone balance including received stones from work order creation
+    const [balanceRows] = await db.execute(
+      `
+      SELECT 
+        wo.id as work_order_id,
+        wo.work_order_number,
+        -- Original received stones from work order creation (is_received = 1)
+        COALESCE(SUM(CASE WHEN s.is_received = 1 AND (s.stage_added = 'original' OR s.stage_added IS NULL) THEN s.weight_grams ELSE 0 END), 0) as original_received_grams,
+        COALESCE(SUM(CASE WHEN s.is_received = 1 AND (s.stage_added = 'original' OR s.stage_added IS NULL) THEN s.weight_carats ELSE 0 END), 0) as original_received_carats,
+        -- Additional stones added during the specific stage
+        COALESCE(SUM(CASE WHEN s.stage_added = ? AND s.is_received = 1 THEN s.weight_grams ELSE 0 END), 0) as stage_added_grams,
+        COALESCE(SUM(CASE WHEN s.stage_added = ? AND s.is_received = 1 THEN s.weight_carats ELSE 0 END), 0) as stage_added_carats,
+        -- All received stones (original + stage added)
+        COALESCE(SUM(CASE WHEN s.is_received = 1 THEN s.weight_grams ELSE 0 END), 0) as total_received_grams,
+        COALESCE(SUM(CASE WHEN s.is_received = 1 THEN s.weight_carats ELSE 0 END), 0) as total_received_carats,
+        -- Returned stones for the specific stage
+        COALESCE(rs_summary.returned_grams, 0) as returned_stones_grams,
+        COALESCE(rs_summary.returned_carats, 0) as returned_stones_carats
+      FROM work_orders wo
+      LEFT JOIN stones s ON wo.id = s.work_order_id
+      LEFT JOIN (
+        SELECT 
+          work_order_id,
+          SUM(weight_grams) as returned_grams,
+          SUM(weight_carats) as returned_carats
+        FROM returned_stones 
+        WHERE stage_name = ?
+        GROUP BY work_order_id
+      ) rs_summary ON wo.id = rs_summary.work_order_id
+      WHERE wo.id = ?
+      GROUP BY wo.id, wo.work_order_number
+    `,
+      [stage, stage, stage, id],
+    )
+
+    // Get detailed breakdown by stone type - FIXED to properly consider received stones
+    const [detailRows] = await db.execute(
+      `
+      SELECT 
+        COALESCE(s.type, rs.type) as type,
+        -- Original received stones by type
+        COALESCE(s_summary.original_received_pieces, 0) as original_received_pieces,
+        COALESCE(s_summary.original_received_grams, 0) as original_received_grams,
+        COALESCE(s_summary.original_received_carats, 0) as original_received_carats,
+        -- Stage added stones by type
+        COALESCE(s_summary.stage_added_pieces, 0) as stage_added_pieces,
+        COALESCE(s_summary.stage_added_grams, 0) as stage_added_grams,
+        COALESCE(s_summary.stage_added_carats, 0) as stage_added_carats,
+        -- Total received stones by type
+        COALESCE(s_summary.total_received_pieces, 0) as total_received_pieces,
+        COALESCE(s_summary.total_received_grams, 0) as total_received_grams,
+        COALESCE(s_summary.total_received_carats, 0) as total_received_carats,
+        -- Returned stones by type
+        COALESCE(rs.returned_pieces, 0) as returned_pieces,
+        COALESCE(rs.returned_grams, 0) as returned_grams,
+        COALESCE(rs.returned_carats, 0) as returned_carats,
+        -- Remaining stones calculation (total received - returned)
+        (COALESCE(s_summary.total_received_grams, 0) - COALESCE(rs.returned_grams, 0)) as remaining_grams,
+        (COALESCE(s_summary.total_received_carats, 0) - COALESCE(rs.returned_carats, 0)) as remaining_carats
+      FROM (
+        SELECT DISTINCT type FROM stones WHERE work_order_id = ? AND is_received = 1
+        UNION
+        SELECT DISTINCT type FROM returned_stones WHERE work_order_id = ? AND stage_name = ?
+      ) stone_types
+      LEFT JOIN (
+        SELECT 
+          type,
+          -- Original received stones (from work order creation)
+          SUM(CASE WHEN is_received = 1 AND (stage_added = 'original' OR stage_added IS NULL) THEN pieces ELSE 0 END) as original_received_pieces,
+          SUM(CASE WHEN is_received = 1 AND (stage_added = 'original' OR stage_added IS NULL) THEN weight_grams ELSE 0 END) as original_received_grams,
+          SUM(CASE WHEN is_received = 1 AND (stage_added = 'original' OR stage_added IS NULL) THEN weight_carats ELSE 0 END) as original_received_carats,
+          -- Stage added stones
+          SUM(CASE WHEN stage_added = ? AND is_received = 1 THEN pieces ELSE 0 END) as stage_added_pieces,
+          SUM(CASE WHEN stage_added = ? AND is_received = 1 THEN weight_grams ELSE 0 END) as stage_added_grams,
+          SUM(CASE WHEN stage_added = ? AND is_received = 1 THEN weight_carats ELSE 0 END) as stage_added_carats,
+          -- Total received stones
+          SUM(CASE WHEN is_received = 1 THEN pieces ELSE 0 END) as total_received_pieces,
+          SUM(CASE WHEN is_received = 1 THEN weight_grams ELSE 0 END) as total_received_grams,
+          SUM(CASE WHEN is_received = 1 THEN weight_carats ELSE 0 END) as total_received_carats
+        FROM stones 
+        WHERE work_order_id = ?
+        GROUP BY type
+      ) s_summary ON stone_types.type = s_summary.type
+      LEFT JOIN (
+        SELECT 
+          type,
+          SUM(pieces) as returned_pieces,
+          SUM(weight_grams) as returned_grams,
+          SUM(weight_carats) as returned_carats
+        FROM returned_stones 
+        WHERE work_order_id = ? AND stage_name = ?
+        GROUP BY type
+      ) rs ON stone_types.type = rs.type
+      LEFT JOIN stones s ON stone_types.type = s.type AND s.work_order_id = ?
+      ORDER BY stone_types.type
+    `,
+      [id, id, stage, stage, stage, stage, id, id, stage, id],
+    )
+
+    const balance = balanceRows[0] || {
+      original_received_grams: 0,
+      original_received_carats: 0,
+      stage_added_grams: 0,
+      stage_added_carats: 0,
+      total_received_grams: 0,
+      total_received_carats: 0,
+      returned_stones_grams: 0,
+      returned_stones_carats: 0,
+    }
+
+    // Calculate remaining stones (total received - returned)
+    const remainingGrams = balance.total_received_grams - balance.returned_stones_grams
+    const remainingCarats = balance.total_received_carats - balance.returned_stones_carats
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          originalReceivedStones: {
+            grams: Number.parseFloat(balance.original_received_grams.toFixed(3)),
+            carats: Number.parseFloat(balance.original_received_carats.toFixed(3)),
+          },
+          stageAddedStones: {
+            grams: Number.parseFloat(balance.stage_added_grams.toFixed(3)),
+            carats: Number.parseFloat(balance.stage_added_carats.toFixed(3)),
+          },
+          totalReceivedStones: {
+            grams: Number.parseFloat(balance.total_received_grams.toFixed(3)),
+            carats: Number.parseFloat(balance.total_received_carats.toFixed(3)),
+          },
+          returnedStones: {
+            grams: Number.parseFloat(balance.returned_stones_grams.toFixed(3)),
+            carats: Number.parseFloat(balance.returned_stones_carats.toFixed(3)),
+          },
+          remainingStones: {
+            grams: Number.parseFloat(remainingGrams.toFixed(3)),
+            carats: Number.parseFloat(remainingCarats.toFixed(3)),
+          },
+          difference: {
+            grams: Number.parseFloat(remainingGrams.toFixed(3)),
+            carats: Number.parseFloat(remainingCarats.toFixed(3)),
+          },
+        },
+        stoneDetails: detailRows.map((row) => ({
+          type: row.type,
+          originalReceived: {
+            pieces: row.original_received_pieces,
+            grams: Number.parseFloat((row.original_received_grams || 0).toFixed(3)),
+            carats: Number.parseFloat((row.original_received_carats || 0).toFixed(3)),
+          },
+          stageAdded: {
+            pieces: row.stage_added_pieces,
+            grams: Number.parseFloat((row.stage_added_grams || 0).toFixed(3)),
+            carats: Number.parseFloat((row.stage_added_carats || 0).toFixed(3)),
+          },
+          totalReceived: {
+            pieces: row.total_received_pieces,
+            grams: Number.parseFloat((row.total_received_grams || 0).toFixed(3)),
+            carats: Number.parseFloat((row.total_received_carats || 0).toFixed(3)),
+          },
+          returned: {
+            pieces: row.returned_pieces,
+            grams: Number.parseFloat((row.returned_grams || 0).toFixed(3)),
+            carats: Number.parseFloat((row.returned_carats || 0).toFixed(3)),
+          },
+          remaining: {
+            grams: Number.parseFloat((row.remaining_grams || 0).toFixed(3)),
+            carats: Number.parseFloat((row.remaining_carats || 0).toFixed(3)),
+          },
+        })),
+      },
+    })
+  } catch (error) {
+    console.error("Error fetching stone balance:", error)
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch stone balance",
+      error: error.message,
+    })
+  }
+})
+
+// Create a new work order with file upload support
 router.post("/", authenticateToken, upload.array("images", 5), async (req, res) => {
   const connection = await db.getConnection()
 
@@ -118,7 +300,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
     const { partyName, poNumber, poDate, itemDetails, modelNumber, descriptionOfWork, expectedCompletionDate } =
       req.body
 
-    // Parse stones and assignedWorkers from JSON strings
     let stones = []
     let assignedWorkers = []
 
@@ -134,13 +315,11 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
       console.error("Error parsing assignedWorkers:", e)
     }
 
-    // Handle uploaded images
     let imagePaths = []
     if (req.files && req.files.length > 0) {
       imagePaths = req.files.map((file) => `/uploads/${file.filename}`)
     }
 
-    // Generate work order number
     const [lastOrder] = await connection.execute("SELECT work_order_number FROM work_orders ORDER BY id DESC LIMIT 1")
 
     let workOrderNumber = "WO001"
@@ -154,7 +333,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
       }
     }
 
-    // Insert work order with images
     const [result] = await connection.execute(
       `INSERT INTO work_orders (
         work_order_number, party_name, po_number, po_date, item_details, 
@@ -178,18 +356,16 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
 
     const workOrderId = result.insertId
 
-    // Insert stones if provided
     if (stones && stones.length > 0) {
       for (const stone of stones) {
         await connection.execute(
-          `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received, stage_added) 
+           VALUES (?, ?, ?, ?, ?, ?, 'original')`,
           [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats, stone.isReceived ? 1 : 0],
         )
       }
     }
 
-    // Insert worker assignments if provided
     if (assignedWorkers && assignedWorkers.length > 0) {
       for (const assignment of assignedWorkers) {
         await connection.execute(
@@ -200,7 +376,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
       }
     }
 
-    // Add activity log
     await connection.execute(
       `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -239,7 +414,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
     await connection.rollback()
     console.error("Error creating work order:", error)
 
-    // Clean up uploaded files on error
     if (req.files && req.files.length > 0) {
       req.files.forEach((file) => {
         const filePath = path.join(__dirname, "../uploads", file.filename)
@@ -259,7 +433,7 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
   }
 })
 
-// Assign workers to work order - NEW ENDPOINT
+// Assign workers to work order
 router.put("/:id/assign-workers", authenticateToken, async (req, res) => {
   const connection = await db.getConnection()
 
@@ -269,7 +443,6 @@ router.put("/:id/assign-workers", authenticateToken, async (req, res) => {
     const workOrderId = req.params.id
     const { assignments } = req.body
 
-    // Get work order details
     const [workOrder] = await connection.execute("SELECT work_order_number, party_name FROM work_orders WHERE id = ?", [
       workOrderId,
     ])
@@ -282,10 +455,8 @@ router.put("/:id/assign-workers", authenticateToken, async (req, res) => {
       })
     }
 
-    // Delete existing assignments
     await connection.execute("DELETE FROM worker_assignments WHERE work_order_id = ?", [workOrderId])
 
-    // Insert new assignments
     for (const assignment of assignments) {
       await connection.execute(
         `INSERT INTO worker_assignments (work_order_id, user_id, stage_type, assigned_date, assigned_by) 
@@ -294,7 +465,6 @@ router.put("/:id/assign-workers", authenticateToken, async (req, res) => {
       )
     }
 
-    // Add activity log
     await connection.execute(
       `INSERT INTO activity_logs (work_order_id, work_order_number, action, performed_by, performed_by_role, details)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -417,13 +587,12 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 
     const { id } = req.params
 
-    // Delete related records first
     await connection.execute("DELETE FROM worker_assignments WHERE work_order_id = ?", [id])
     await connection.execute("DELETE FROM work_order_stages WHERE work_order_id = ?", [id])
     await connection.execute("DELETE FROM stones WHERE work_order_id = ?", [id])
+    await connection.execute("DELETE FROM returned_stones WHERE work_order_id = ?", [id])
     await connection.execute("DELETE FROM activity_logs WHERE work_order_id = ?", [id])
 
-    // Delete work order
     const [result] = await connection.execute("DELETE FROM work_orders WHERE id = ?", [id])
 
     if (result.affectedRows === 0) {
@@ -466,10 +635,8 @@ router.post("/:id/images", authenticateToken, upload.array("images", 5), async (
       })
     }
 
-    // Construct the image paths
     const images = files.map((file) => `/uploads/${file.filename}`)
 
-    // Get existing images from the database
     const [rows] = await db.execute("SELECT images FROM work_orders WHERE id = ?", [id])
     let existingImages = []
 
@@ -482,10 +649,8 @@ router.post("/:id/images", authenticateToken, upload.array("images", 5), async (
       }
     }
 
-    // Combine existing and new images
     const allImages = [...existingImages, ...images]
 
-    // Update the work order with the new image paths
     await db.execute("UPDATE work_orders SET images = ? WHERE id = ?", [JSON.stringify(allImages), id])
 
     res.status(200).json({
@@ -498,7 +663,6 @@ router.post("/:id/images", authenticateToken, upload.array("images", 5), async (
   } catch (error) {
     console.error("Error uploading images:", error)
 
-    // If an error occurs during upload, attempt to delete the uploaded files
     if (req.files && req.files.length > 0) {
       req.files.forEach((file) => {
         const filePath = path.join(__dirname, "../uploads", file.filename)
@@ -525,10 +689,9 @@ router.get("/:id/details", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
 
-    // Get work order with stones and images
     const workOrderQuery = `
       SELECT wo.*, 
-             GROUP_CONCAT(DISTINCT CONCAT(s.type, ':', s.pieces, ':', s.weight_grams, ':', s.weight_carats) SEPARATOR '|') as stones_info
+             GROUP_CONCAT(DISTINCT CONCAT(s.type, ':', s.pieces, ':', s.weight_grams, ':', s.weight_carats, ':', COALESCE(s.stage_added, 'original'), ':', s.is_received) SEPARATOR '|') as stones_info
       FROM work_orders wo
       LEFT JOIN stones s ON wo.id = s.work_order_id
       WHERE wo.id = ?
@@ -546,12 +709,10 @@ router.get("/:id/details", authenticateToken, async (req, res) => {
 
     const workOrder = workOrderRows[0]
 
-    // Parse images from JSON if they exist
     let images = []
     if (workOrder.images) {
       try {
         images = JSON.parse(workOrder.images)
-        // Convert relative paths to full URLs if needed
         images = images.map((img) => {
           if (img.startsWith("/uploads/")) {
             return `${req.protocol}://${req.get("host")}${img}`
@@ -563,17 +724,16 @@ router.get("/:id/details", authenticateToken, async (req, res) => {
       }
     }
 
-    // Parse stones
     let stones = []
     if (workOrder.stones_info) {
       stones = parseStonesInfo(workOrder.stones_info)
     }
 
-    // Get assignment date for the current stage
     const assignmentQuery = `
-      SELECT assigned_date, assigned_by, u.name as assigned_by_name
+      SELECT assigned_date, assigned_by, u.name as assigned_by_name, u2.name as assigned_worker_name, u2.email as assigned_worker_email
       FROM worker_assignments wa
       LEFT JOIN users u ON wa.assigned_by = u.id
+      LEFT JOIN users u2 ON wa.user_id = u2.id
       WHERE work_order_id = ? 
       ORDER BY assigned_date DESC 
       LIMIT 1
@@ -581,6 +741,8 @@ router.get("/:id/details", authenticateToken, async (req, res) => {
 
     const [assignmentRows] = await db.execute(assignmentQuery, [id])
     const assignedDate = assignmentRows.length > 0 ? assignmentRows[0].assigned_date : null
+    const assignedWorkerName = assignmentRows.length > 0 ? assignmentRows[0].assigned_worker_name : null
+    const assignedWorkerEmail = assignmentRows.length > 0 ? assignmentRows[0].assigned_worker_email : null
 
     res.json({
       success: true,
@@ -589,6 +751,8 @@ router.get("/:id/details", authenticateToken, async (req, res) => {
         images,
         stones,
         assignedDate,
+        assignedWorkerName,
+        assignedWorkerEmail,
       },
     })
   } catch (error) {
@@ -625,15 +789,16 @@ function parseStonesInfo(stonesInfo) {
 
   try {
     return stonesInfo.split("|").map((stoneStr, index) => {
-      const [type, pieces, weightGrams, weightCarats] = stoneStr.split(":")
+      const [type, pieces, weightGrams, weightCarats, stageAdded, isReceived] = stoneStr.split(":")
       return {
         id: `stone_${index}`,
         type: type || "Unknown",
         pieces: Number.parseInt(pieces) || 0,
         weightGrams: Number.parseFloat(weightGrams) || 0,
         weightCarats: Number.parseFloat(weightCarats) || 0,
-        isReceived: true,
+        isReceived: isReceived === "1",
         isReturned: false,
+        stageAdded: stageAdded || "original",
       }
     })
   } catch (error) {
