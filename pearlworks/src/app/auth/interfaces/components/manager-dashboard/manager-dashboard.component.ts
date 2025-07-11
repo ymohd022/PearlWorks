@@ -1,48 +1,48 @@
 import { Component,  OnInit,  OnDestroy } from "@angular/core"
 import {  FormBuilder, FormGroup, Validators, FormArray } from "@angular/forms"
 import { Subject, takeUntil } from "rxjs"
-import  {
-  WorkOrder,
-  CreateWorkOrderRequest,
-  Worker,
-  StageType,
-  AssignedWorker,
-} from "../../work-order.interface"
+import  { WorkOrder, CreateWorkOrderRequest, Worker, StageType, AssignedWorker } from "../../work-order.interface"
 import  { WorkOrderService } from "../../services/work-order.service"
-import { Router } from '@angular/router';
-import { AuthService } from "../../services/auth.service"
-import { RoleDashboardService } from "../../services/role-dashboard.service"
-import { AutocompleteService } from "../../services/autocomplete.service"
-import { AutocompleteOption } from "../../services/autocomplete.service"
-import { ApiService } from "../../services/api.service"
-import { DispatchOrder, DispatchStatistics, DispatchUpdateRequest } from "../../dispatch.interface"
-import { DispatchService } from "../../services/dispatch.service"
+import  { Router } from "@angular/router"
+import  { AuthService } from "../../services/auth.service"
+import  { RoleDashboardService } from "../../services/role-dashboard.service"
+import  { AutocompleteOption } from "../../services/autocomplete.service"
+import  { ApiService } from "../../services/api.service"
+import  { DispatchOrder, DispatchStatistics, DispatchUpdateRequest } from "../../dispatch.interface"
+import  { DispatchService } from "../../services/dispatch.service"
+
 @Component({
-  selector: 'app-manager-dashboard',
+  selector: "app-manager-dashboard",
   standalone: false,
-  templateUrl: './manager-dashboard.component.html',
-  styleUrl: './manager-dashboard.component.css'
+  templateUrl: "./manager-dashboard.component.html",
+  styleUrl: "./manager-dashboard.component.css",
 })
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Tab management
   selectedTabIndex = 0
   expandedState: { [orderId: string]: boolean } = {}
+
   // Forms
+  polishOrders: any[] = []
+  polishStatistics: any = null
+  selectedPolishOrder: any = null
+  polishUpdateForm!: FormGroup
   createOrderForm!: FormGroup
   assignmentForm!: FormGroup
   stageUpdateForm!: FormGroup
   settingsForm!: FormGroup
   dispatchForm!: FormGroup
   orders: DispatchOrder[] = []
+
   // Add displayedColumns for dispatch table
   displayedColumns: string[] = [
-    'workOrderNumber',
-    'partyName',
-    'orderCompletedDate',
-    'grossWeight',
-    'netWeight',
-    'status',
-    'actions',
+    "workOrderNumber",
+    "partyName",
+    "orderCompletedDate",
+    "grossWeight",
+    "netWeight",
+    "status",
+    "actions",
   ]
   statistics: DispatchStatistics | null = null
   selectedOrder: DispatchOrder | null = null
@@ -119,7 +119,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.loadWorkers()
     this.loadStageData()
     this.setupDateSubscriptions()
-     this.loadOrders()
+    this.loadOrders()
+    this.loadPolishOrders() // Add this line
+    this.loadPolishStatistics() // Add this line
+    this.initializePolishUpdateForm()
     this.loadStatistics()
   }
 
@@ -164,7 +167,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       updateImages: [[]],
     })
 
-     this.dispatchForm = this.fb.group({
+    this.dispatchForm = this.fb.group({
       orderCompletedDate: ["", Validators.required],
       dispatchedBy: ["", [Validators.required, Validators.minLength(2)]],
     })
@@ -172,6 +175,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.addStoneRow()
     this.generateWorkOrderNumber()
   }
+
   loadOrders(): void {
     this.loading = true
     // Use dispatch service to get orders assigned to dispatch stage
@@ -192,6 +196,128 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       })
   }
 
+  initializePolishUpdateForm(): void {
+    this.polishUpdateForm = this.fb.group({
+      status: ["", Validators.required],
+      jamahWeight: [0],
+      sortingIssue: [0],
+      sortingJamah: [0],
+      notes: [""],
+      approved: [false],
+      karigarName: [""],
+      issueDate: [""],
+      jamahDate: [""],
+      weightDifference: [{ value: 0, disabled: true }],
+      updateImages: [[]],
+    })
+  }
+
+  // Load Polish Orders
+  loadPolishOrders(): void {
+    this.loading = true
+    this.clearMessages()
+    this.apiservice
+      .getManagerStageOrders("polish")
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.polishOrders = response.data || []
+          this.stageWorkOrders["polish"] = this.polishOrders
+          this.loading = false
+        },
+        error: (error) => {
+          console.error("Error loading polish orders:", error)
+          this.errorMessage = "Failed to load polish orders"
+          this.loading = false
+          this.clearMessages()
+        },
+      })
+  }
+
+  // Load Polish Statistics
+  loadPolishStatistics(): void {
+    this.apiservice
+      .getPolishStatistics()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.polishStatistics = response.data || null
+        },
+        error: (error) => {
+          console.error("Error loading polish statistics:", error)
+          this.errorMessage = "Failed to load polish statistics"
+          this.clearMessages()
+        },
+      })
+  }
+
+  // Add the missing openPolishUpdateModal method
+  openPolishUpdateModal(order: any): void {
+    this.selectedPolishOrder = order
+    this.polishUpdateForm.patchValue({
+      status: order.status || "not-started",
+      jamahWeight: order.jamahWeight || 0,
+      sortingIssue: order.sortingIssue || 0,
+      sortingJamah: order.sortingJamah || 0,
+      notes: order.notes || "",
+      approved: order.approved || false,
+      karigarName: order.karigarName || "",
+      issueDate: order.issueDate || "",
+      jamahDate: order.jamahDate || "",
+      weightDifference: order.weightDifference || 0,
+    })
+
+    this.updateImages = []
+    this.updateImagePreviewUrls = []
+  }
+
+  // Submit Polish Update
+  submitPolishUpdate(): void {
+    if (!this.selectedPolishOrder || this.polishUpdateForm.invalid) return
+    this.updatingStage = true
+    this.clearMessages()
+    const formValue = this.polishUpdateForm.value
+    const updateRequest: any = {
+      stage: "polish",
+      status: formValue.status,
+      jamahWeight: formValue.jamahWeight,
+      sortingIssue: formValue.sortingIssue,
+      sortingJamah: formValue.sortingJamah,
+      notes: formValue.notes,
+      approved: formValue.approved,
+      karigarName: formValue.karigarName,
+      issueDate: formValue.issueDate,
+      jamahDate: formValue.jamahDate,
+      updateImages: this.updateImages,
+    }
+    this.apiservice
+      .updateManagerStageStatus(this.selectedPolishOrder.id, updateRequest)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.successMessage = response.message || "Polish stage updated successfully"
+          this.closePolishUpdateModal()
+          this.loadPolishOrders()
+          this.loadPolishStatistics()
+          this.updatingStage = false
+          this.clearMessages()
+        },
+        error: (error) => {
+          console.error("Error updating polish stage:", error)
+          this.errorMessage = error?.error?.message || "Failed to update polish stage"
+          this.updatingStage = false
+          this.clearMessages()
+        },
+      })
+  }
+
+  closePolishUpdateModal(): void {
+    this.selectedPolishOrder = null
+    this.polishUpdateForm.reset()
+    this.updateImages = []
+    this.updateImagePreviewUrls = []
+  }
+
   loadStatistics(): void {
     this.dispatchService
       .getStatistics()
@@ -206,7 +332,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       })
   }
 
-    openDispatchModal(order: DispatchOrder): void {
+  openDispatchModal(order: DispatchOrder): void {
     this.selectedOrder = order
     this.dispatchForm.patchValue({
       orderCompletedDate: this.formatDateForInput(order.orderCompletedDate),
@@ -255,18 +381,17 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       })
   }
 
-   private formatDateForInput(date: Date | string): string {
+  private formatDateForInput(date: Date | string): string {
     if (!date) return ""
     const d = new Date(date)
     return d.toISOString().split("T")[0]
   }
 
-
-
   onPartyNameSelected(option: AutocompleteOption): void {
     console.log("Party name selected:", option)
   }
-   getStatusClass(status: string): string {
+
+  getStatusClass(status: string): string {
     return status === "dispatched" ? "status-dispatched" : "status-ready"
   }
 
@@ -364,6 +489,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       const stage = this.stageTypes[index - 1]
       this.selectedStage = stage
       this.loadStageOrders(stage)
+      if (stage === "polish") {
+        this.loadPolishOrders()
+        this.loadPolishStatistics()
+      }
     }
   }
 

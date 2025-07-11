@@ -177,31 +177,31 @@ router.get("/assigned-orders", authenticateToken, async (req, res) => {
 // @route   PUT /api/dispatch/update-status/:id
 // @access  Private
 router.put("/update-status/:id", authenticateToken, async (req, res) => {
-  const connection = await db.getConnection()
-
+  const connection = await db.getConnection();
   try {
-    await connection.beginTransaction()
+    await connection.beginTransaction();
 
-    const workOrderId = req.params.id
-    const { orderCompletedDate, dispatchedBy, status } = req.body
+    const workOrderId = req.params.id;
+    const { orderCompletedDate, dispatchedBy, status } = req.body;
 
     console.log(`Updating dispatch status for work order ${workOrderId}:`, {
       orderCompletedDate,
       dispatchedBy,
       status,
-    })
+    });
 
     // Check if work order exists
-    const [workOrderCheck] = await connection.execute("SELECT id, work_order_number FROM work_orders WHERE id = ?", [
-      workOrderId,
-    ])
+    const [workOrderCheck] = await connection.execute(
+      "SELECT id, work_order_number FROM work_orders WHERE id = ?", 
+      [workOrderId]
+    );
 
     if (workOrderCheck.length === 0) {
-      await connection.rollback()
+      await connection.rollback();
       return res.status(404).json({
         success: false,
         message: "Work order not found",
-      })
+      });
     }
 
     // Update work order with dispatch information
@@ -213,55 +213,55 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
            updated_at = NOW()
        WHERE id = ?`,
       [orderCompletedDate, dispatchedBy, status, workOrderId],
-    )
+    );
+
+    // Use 'completed' status for dispatch stage to avoid enum issues
+    const stageStatus = 'completed';
 
     // Insert or update dispatch stage
     const [existingStage] = await connection.execute(
       "SELECT id FROM work_order_stages WHERE work_order_id = ? AND stage_name = ?",
-      [workOrderId, "dispatch"],
-    )
+      [workOrderId, "dispatch"]
+    );
 
     if (existingStage.length > 0) {
-      // Update existing dispatch stage
       await connection.execute(
         `UPDATE work_order_stages 
          SET status = ?, 
              updated_at = NOW(),
              jamah_date = ?
          WHERE work_order_id = ? AND stage_name = ?`,
-        [status, orderCompletedDate, workOrderId, "dispatch"],
-      )
+        [stageStatus, orderCompletedDate, workOrderId, "dispatch"]
+      );
     } else {
-      // Insert new dispatch stage
       await connection.execute(
         `INSERT INTO work_order_stages 
          (work_order_id, stage_name, status, jamah_date, created_at, updated_at)
          VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [workOrderId, "dispatch", status, orderCompletedDate],
-      )
+        [workOrderId, "dispatch", stageStatus, orderCompletedDate]
+      );
     }
 
     // Insert or update dispatch details
-    const [existingDispatch] = await connection.execute("SELECT id FROM dispatch_details WHERE work_order_id = ?", [
-      workOrderId,
-    ])
+    const [existingDispatch] = await connection.execute(
+      "SELECT id FROM dispatch_details WHERE work_order_id = ?", 
+      [workOrderId]
+    );
 
     if (existingDispatch.length > 0) {
-      // Update existing dispatch details
       await connection.execute(
         `UPDATE dispatch_details 
          SET dispatch_date = ?, dispatched_by = ?, dispatch_notes = ?, updated_at = NOW()
          WHERE work_order_id = ?`,
-        [orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`, workOrderId],
-      )
+        [orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`, workOrderId]
+      );
     } else {
-      // Insert new dispatch details
       await connection.execute(
         `INSERT INTO dispatch_details 
          (work_order_id, dispatch_date, dispatched_by, dispatch_notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [workOrderId, orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`],
-      )
+        [workOrderId, orderCompletedDate, dispatchedBy, `Dispatched by ${dispatchedBy}`]
+      );
     }
 
     // Log activity
@@ -276,12 +276,12 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
         req.user?.name || dispatchedBy,
         req.user?.role || "dispatcher",
         `Order ${status} by ${dispatchedBy} on ${orderCompletedDate}`,
-      ],
-    )
+      ]
+    );
 
-    await connection.commit()
+    await connection.commit();
 
-    console.log(`Successfully updated dispatch status for work order ${workOrderId}`)
+    console.log(`Successfully updated dispatch status for work order ${workOrderId}`);
 
     res.json({
       success: true,
@@ -292,19 +292,19 @@ router.put("/update-status/:id", authenticateToken, async (req, res) => {
         dispatchedBy,
         orderCompletedDate,
       },
-    })
+    });
   } catch (error) {
-    await connection.rollback()
-    console.error("Error updating dispatch status:", error)
+    await connection.rollback();
+    console.error("Error updating dispatch status:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update dispatch status",
       error: error.message,
-    })
+    });
   } finally {
-    connection.release()
+    connection.release();
   }
-})
+});
 
 // @desc    Get dispatch statistics
 // @route   GET /api/dispatch/statistics

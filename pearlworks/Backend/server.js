@@ -17,6 +17,7 @@ const adminRoutes = require("./routes/admin")
 const managerRoutes = require("./routes/manager")
 const settingRoutes = require("./routes/setting")
 const autocompleteRoutes = require("./routes/autocomplete")
+const managerPolishRoutes = require("./routes/manager-polish")
 
 const PORT = process.env.PORT || 3000
 const app = express()
@@ -57,6 +58,7 @@ app.use("/api/admin", adminRoutes)
 app.use("/api/manager", managerRoutes)
 app.use("/api/setting", settingRoutes)
 app.use('/api/autocomplete', autocompleteRoutes)
+app.use("/api/manager/polish", managerPolishRoutes)
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

@@ -365,7 +365,7 @@
     <!-- Stage Tabs -->
     <mat-tab *ngFor="let stage of stageTypes" [label]="stage | titlecase">
       <ng-template matTabContent>
-        <ng-container *ngIf="stage !== 'dispatch'; else dispatchTab">
+        <ng-container *ngIf="stage !== 'dispatch' && stage !== 'polish'; else polishOrDispatchTab">
           <div class="stage-content">
             <mat-toolbar class="stage-toolbar">
               <mat-icon>{{ stageIcons[stage] }}</mat-icon>
@@ -385,15 +385,15 @@
                   <div class="order-details">
                     <div class="detail-row">
                       <span class="label">Product:</span>
-                      <span>{{ order.productType }}</span>
+                      <span>{{ order.productType || order.itemDetails }}</span>
                     </div>
                     <div class="detail-row">
                       <span class="label">Issue Weight:</span>
-                      <span>{{ order.issueWeight }}g</span>
+                      <span>{{ order.issueWeight || order.grossWeight }}g</span>
                     </div>
-                    <div class="detail-row" *ngIf="order.jamahWeight">
+                    <div class="detail-row" *ngIf="order.jamahWeight || order.jamah_weight">
                       <span class="label">Jamah Weight:</span>
-                      <span>{{ order.jamahWeight }}g</span>
+                      <span>{{ order.jamahWeight || order.jamah_weight }}g</span>
                     </div>
                     <div class="detail-row">
                       <span class="label">Status:</span>
@@ -425,161 +425,281 @@
             </div>
           </div>
         </ng-container>
-        <ng-template #dispatchTab>
-          <div class="dispatch-container">
-            <!-- Dispatch Header -->
-            <mat-toolbar color="primary" class="dispatch-header">
-              <mat-icon>local_shipping</mat-icon>
-              <span class="toolbar-title">Dispatch Management</span>
-              <span class="toolbar-spacer"></span>
-              <button mat-icon-button (click)="logout()" matTooltip="Logout">
-                <mat-icon>logout</mat-icon>
-              </button>
-            </mat-toolbar>
-            <!-- Messages -->
-            <div class="messages-container" *ngIf="successMessage || errorMessage">
-              <mat-card *ngIf="successMessage" class="success-message">
-                <mat-card-content>
-                  <mat-icon>check_circle</mat-icon>
-                  {{ successMessage }}
-                </mat-card-content>
-              </mat-card>
-              <mat-card *ngIf="errorMessage" class="error-message">
-                <mat-card-content>
-                  <mat-icon>error</mat-icon>
-                  {{ errorMessage }}
-                </mat-card-content>
-              </mat-card>
-            </div>
-            <!-- Statistics Cards -->
-            <div class="statistics-grid" *ngIf="statistics">
-              <mat-card class="stat-card">
-                <mat-card-content>
-                  <div class="stat-content">
-                    <mat-icon class="stat-icon ready">inventory</mat-icon>
-                    <div class="stat-details">
-                      <div class="stat-number">{{ statistics.totalReady }}</div>
-                      <div class="stat-label">Ready for Dispatch</div>
+
+        <!-- Polish and Dispatch Tab Template -->
+        <ng-template #polishOrDispatchTab>
+          <!-- Polish Tab Content -->
+          <ng-container *ngIf="stage === 'polish'">
+            <div class="stage-content">
+              <mat-toolbar class="stage-toolbar">
+                <mat-icon>auto_fix_high</mat-icon>
+                <span>Polish Management</span>
+                <span class="toolbar-spacer"></span>
+                <mat-chip-set>
+                  <mat-chip>{{ (stageWorkOrders['polish'] || []).length }} Orders</mat-chip>
+                </mat-chip-set>
+              </mat-toolbar>
+
+              <!-- Polish Statistics Cards -->
+              <div class="statistics-grid" *ngIf="polishStatistics">
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon pending">pending</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ polishStatistics.pendingOrders || 0 }}</div>
+                        <div class="stat-label">Pending Orders</div>
+                      </div>
                     </div>
-                  </div>
-                </mat-card-content>
-              </mat-card>
-              <mat-card class="stat-card">
-                <mat-card-content>
-                  <div class="stat-content">
-                    <mat-icon class="stat-icon dispatched">local_shipping</mat-icon>
-                    <div class="stat-details">
-                      <div class="stat-number">{{ statistics.totalDispatched }}</div>
-                      <div class="stat-label">Total Dispatched</div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon in-progress">hourglass_empty</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ polishStatistics.inProgressOrders || 0 }}</div>
+                        <div class="stat-label">In Progress</div>
+                      </div>
                     </div>
-                  </div>
-                </mat-card-content>
-              </mat-card>
-              <mat-card class="stat-card">
-                <mat-card-content>
-                  <div class="stat-content">
-                    <mat-icon class="stat-icon today">today</mat-icon>
-                    <div class="stat-details">
-                      <div class="stat-number">{{ statistics.dispatchedToday }}</div>
-                      <div class="stat-label">Dispatched Today</div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon completed">check_circle</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ polishStatistics.completedOrders || 0 }}</div>
+                        <div class="stat-label">Completed</div>
+                      </div>
                     </div>
-                  </div>
-                </mat-card-content>
-              </mat-card>
-              <mat-card class="stat-card">
-                <mat-card-content>
-                  <div class="stat-content">
-                    <mat-icon class="stat-icon month">date_range</mat-icon>
-                    <div class="stat-details">
-                      <div class="stat-number">{{ statistics.dispatchedThisMonth }}</div>
-                      <div class="stat-label">This Month</div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon approved">verified</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ polishStatistics.approvedOrders || 0 }}</div>
+                        <div class="stat-label">Approved</div>
+                      </div>
                     </div>
-                  </div>
-                </mat-card-content>
-              </mat-card>
-            </div>
-            <!-- Orders Table -->
-            <mat-card class="orders-card">
-              <mat-card-header>
-                <mat-card-title>
-                  <mat-icon>list_alt</mat-icon>
-                  Dispatch Orders
-                </mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <div *ngIf="loading" class="loading-container">
-                  <mat-spinner></mat-spinner>
-                </div>
-                <div *ngIf="!loading && orders.length === 0" class="empty-state">
-                  <mat-icon>inbox</mat-icon>
-                  <p>No orders ready for dispatch</p>
-                </div>
-                <div *ngIf="!loading && orders.length > 0" class="table-container">
-                  <table mat-table [dataSource]="orders" class="dispatch-table">
-                    <!-- Work Order Number Column -->
-                    <ng-container matColumnDef="workOrderNumber">
-                      <th mat-header-cell *matHeaderCellDef>Work Order</th>
-                      <td mat-cell *matCellDef="let order">
-                        <div class="order-number">{{ order.workOrderNumber }}</div>
-                      </td>
-                    </ng-container>
-                    <!-- Party Name Column -->
-                    <ng-container matColumnDef="partyName">
-                      <th mat-header-cell *matHeaderCellDef>Party Name</th>
-                      <td mat-cell *matCellDef="let order">{{ order.partyName }}</td>
-                    </ng-container>
-                    <!-- Order Completed Date Column -->
-                    <ng-container matColumnDef="orderCompletedDate">
-                      <th mat-header-cell *matHeaderCellDef>Completed Date</th>
-                      <td mat-cell *matCellDef="let order">
-                        {{ formatDate(order.orderCompletedDate) }}
-                      </td>
-                    </ng-container>
-                    <!-- Gross Weight Column -->
-                    <ng-container matColumnDef="grossWeight">
-                      <th mat-header-cell *matHeaderCellDef>Gross Weight</th>
-                      <td mat-cell *matCellDef="let order">
-                        <div class="weight-value">{{ formatWeight(order.grossWeight) }}</div>
-                      </td>
-                    </ng-container>
-                    <!-- Net Weight Column -->
-                    <ng-container matColumnDef="netWeight">
-                      <th mat-header-cell *matHeaderCellDef>Net Weight</th>
-                      <td mat-cell *matCellDef="let order">
-                        <div class="weight-value">{{ formatWeight(order.netWeight) }}</div>
-                      </td>
-                    </ng-container>
-                    <!-- Status Column -->
-                    <ng-container matColumnDef="status">
-                      <th mat-header-cell *matHeaderCellDef>Status</th>
-                      <td mat-cell *matCellDef="let order">
-                        <mat-chip [class]="getStatusClass(order.status)">
+                  </mat-card-content>
+                </mat-card>
+              </div>
+
+              <!-- Polish Orders Grid -->
+              <div class="stage-orders-grid">
+                <mat-card *ngFor="let order of stageWorkOrders['polish']" class="stage-order-card polish-order-card">
+                  <mat-card-header>
+                    <mat-card-title>{{ order.workOrderNumber }}</mat-card-title>
+                    <mat-card-subtitle>{{ order.partyName }}</mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    <div class="order-details">
+                      <div class="detail-row">
+                        <span class="label">Product:</span>
+                        <span>{{ order.productType || order.itemDetails }}</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">Issue Weight:</span>
+                        <span>{{ formatWeight(order.issueWeight || order.grossWeight) }}</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.jamahWeight">
+                        <span class="label">Jamah Weight:</span>
+                        <span>{{ formatWeight(order.jamahWeight) }}</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.karigarName">
+                        <span class="label">Karigar:</span>
+                        <span>{{ order.karigarName }}</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">Status:</span>
+                        <mat-chip [class]="getStatusBadgeClass(order.status)">
                           {{ order.status | titlecase }}
                         </mat-chip>
-                      </td>
-                    </ng-container>
-                    <!-- Actions Column -->
-                    <ng-container matColumnDef="actions">
-                      <th mat-header-cell *matHeaderCellDef>Actions</th>
-                      <td mat-cell *matCellDef="let order">
-                        <button 
-                          mat-raised-button 
-                          color="primary" 
-                          (click)="openDispatchModal(order)"
-                          [disabled]="order.status === 'dispatched'"
-                          class="dispatch-btn">
-                          <mat-icon>local_shipping</mat-icon>
-                          {{ order.status === 'dispatched' ? 'Dispatched' : 'Dispatch' }}
-                        </button>
-                      </td>
-                    </ng-container>
-                    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-                  </table>
-                </div>
-              </mat-card-content>
-            </mat-card>
-          </div>
+                      </div>
+                      <div class="detail-row" *ngIf="order.approved">
+                        <span class="label">Approved:</span>
+                        <mat-icon class="approved-icon">verified</mat-icon>
+                      </div>
+                      <div class="detail-row" *ngIf="order.weightDifference">
+                        <span class="label">Weight Difference:</span>
+                        <span>{{ formatWeight(order.weightDifference) }}</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.notes">
+                        <span class="label">Notes:</span>
+                        <span>{{ order.notes }}</span>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                  <mat-card-actions>
+                    <button mat-button color="accent" (click)="openDetailModal(order)">
+                      <mat-icon>visibility</mat-icon>
+                      View Detail
+                    </button>
+                    <button mat-raised-button color="primary" (click)="openPolishUpdateModal(order)">
+                      <mat-icon>edit</mat-icon>
+                      Update Polish
+                    </button>
+                  </mat-card-actions>
+                </mat-card>
+              </div>
+              
+              <div *ngIf="!stageWorkOrders['polish'] || stageWorkOrders['polish'].length === 0" class="empty-stage">
+                <mat-icon>auto_fix_high</mat-icon>
+                <p>No orders assigned to Polish</p>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Dispatch Tab Content -->
+          <ng-container *ngIf="stage === 'dispatch'">
+            <div class="dispatch-container">
+              <!-- Dispatch Header -->
+              <mat-toolbar color="primary" class="dispatch-header">
+                <mat-icon>local_shipping</mat-icon>
+                <span class="toolbar-title">Dispatch Management</span>
+                <span class="toolbar-spacer"></span>
+                <button mat-icon-button (click)="logout()" matTooltip="Logout">
+                  <mat-icon>logout</mat-icon>
+                </button>
+              </mat-toolbar>
+              
+              <!-- Statistics Cards -->
+              <div class="statistics-grid" *ngIf="statistics">
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon ready">inventory</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ statistics.totalReady }}</div>
+                        <div class="stat-label">Ready for Dispatch</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon dispatched">local_shipping</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ statistics.totalDispatched }}</div>
+                        <div class="stat-label">Total Dispatched</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon today">today</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ statistics.dispatchedToday }}</div>
+                        <div class="stat-label">Dispatched Today</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon month">date_range</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ statistics.dispatchedThisMonth }}</div>
+                        <div class="stat-label">This Month</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+              
+              <!-- Orders Table -->
+              <mat-card class="orders-card">
+                <mat-card-header>
+                  <mat-card-title>
+                    <mat-icon>list_alt</mat-icon>
+                    Dispatch Orders
+                  </mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <div *ngIf="loading" class="loading-container">
+                    <mat-spinner></mat-spinner>
+                  </div>
+                  <div *ngIf="!loading && orders.length === 0" class="empty-state">
+                    <mat-icon>inbox</mat-icon>
+                    <p>No orders ready for dispatch</p>
+                  </div>
+                  <div *ngIf="!loading && orders.length > 0" class="table-container">
+                    <table mat-table [dataSource]="orders" class="dispatch-table">
+                      <!-- Work Order Number Column -->
+                      <ng-container matColumnDef="workOrderNumber">
+                        <th mat-header-cell *matHeaderCellDef>Work Order</th>
+                        <td mat-cell *matCellDef="let order">
+                          <div class="order-number">{{ order.workOrderNumber }}</div>
+                        </td>
+                      </ng-container>
+                      <!-- Party Name Column -->
+                      <ng-container matColumnDef="partyName">
+                        <th mat-header-cell *matHeaderCellDef>Party Name</th>
+                        <td mat-cell *matCellDef="let order">{{ order.partyName }}</td>
+                      </ng-container>
+                      <!-- Order Completed Date Column -->
+                      <ng-container matColumnDef="orderCompletedDate">
+                        <th mat-header-cell *matHeaderCellDef>Completed Date</th>
+                        <td mat-cell *matCellDef="let order">
+                          {{ formatDate(order.orderCompletedDate) }}
+                        </td>
+                      </ng-container>
+                      <!-- Gross Weight Column -->
+                      <ng-container matColumnDef="grossWeight">
+                        <th mat-header-cell *matHeaderCellDef>Gross Weight</th>
+                        <td mat-cell *matCellDef="let order">
+                          <div class="weight-value">{{ formatWeight(order.grossWeight) }}</div>
+                        </td>
+                      </ng-container>
+                      <!-- Net Weight Column -->
+                      <ng-container matColumnDef="netWeight">
+                        <th mat-header-cell *matHeaderCellDef>Net Weight</th>
+                        <td mat-cell *matCellDef="let order">
+                          <div class="weight-value">{{ formatWeight(order.netWeight) }}</div>
+                        </td>
+                      </ng-container>
+                      <!-- Status Column -->
+                      <ng-container matColumnDef="status">
+                        <th mat-header-cell *matHeaderCellDef>Status</th>
+                        <td mat-cell *matCellDef="let order">
+                          <mat-chip [class]="getStatusClass(order.status)">
+                            {{ order.status | titlecase }}
+                          </mat-chip>
+                        </td>
+                      </ng-container>
+                      <!-- Actions Column -->
+                      <ng-container matColumnDef="actions">
+                        <th mat-header-cell *matHeaderCellDef>Actions</th>
+                        <td mat-cell *matCellDef="let order">
+                          <button 
+                            mat-raised-button 
+                            color="primary" 
+                            (click)="openDispatchModal(order)"
+                            [disabled]="order.status === 'dispatched'"
+                            class="dispatch-btn">
+                            <mat-icon>local_shipping</mat-icon>
+                            {{ order.status === 'dispatched' ? 'Dispatched' : 'Dispatch' }}
+                          </button>
+                        </td>
+                      </ng-container>
+                      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                    </table>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </ng-container>
         </ng-template>
       </ng-template>
     </mat-tab>
@@ -1098,6 +1218,196 @@
     </mat-card>
   </div>
 </ng-container>
+
+<!-- Add this after the existing modals in manager-dashboard.component.html -->
+<ng-container *ngIf="selectedPolishOrder">
+  <div class="modal-overlay" (click)="closePolishUpdateModal()">
+    <mat-card class="polish-update-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>auto_fix_high</mat-icon>
+          Update Polish - {{ selectedPolishOrder.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <form [formGroup]="polishUpdateForm">
+          
+          <!-- Basic Information Section -->
+          <div class="polish-section">
+            <h4>
+              <mat-icon>info</mat-icon>
+              Polish Stage Information
+            </h4>
+            
+            <div class="polish-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Status *</mat-label>
+                <mat-select formControlName="status">
+                  <mat-option value="not-started">Not Started</mat-option>
+                  <mat-option value="in-progress">In Progress</mat-option>
+                  <mat-option value="completed">Completed</mat-option>
+                  <mat-option value="on-hold">On Hold</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Karigar Name</mat-label>
+                <input matInput formControlName="karigarName" placeholder="Enter karigar name">
+              </mat-form-field>
+            </div>
+
+            <div class="polish-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Issue Date</mat-label>
+                <input matInput [matDatepicker]="polishIssueDatePicker" formControlName="issueDate">
+                <mat-datepicker-toggle matSuffix [for]="polishIssueDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #polishIssueDatePicker></mat-datepicker>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Issue Weight (g)</mat-label>
+                <input matInput type="number" [value]="formatWeight(selectedPolishOrder.issueWeight || selectedPolishOrder.grossWeight)" readonly>
+                <mat-hint>Auto-filled from previous stage</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <div class="polish-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Date</mat-label>
+                <input matInput [matDatepicker]="polishJamahDatePicker" formControlName="jamahDate">
+                <mat-datepicker-toggle matSuffix [for]="polishJamahDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #polishJamahDatePicker></mat-datepicker>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Weight (g)</mat-label>
+                <input matInput type="number" formControlName="jamahWeight" step="0.001" 
+                       placeholder="25.000">
+              </mat-form-field>
+            </div>
+
+            <div class="polish-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Sorting Issue</mat-label>
+                <input matInput type="number" formControlName="sortingIssue" step="0.001">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Sorting Jamah</mat-label>
+                <input matInput type="number" formControlName="sortingJamah" step="0.001">
+              </mat-form-field>
+            </div>
+
+            <div class="polish-form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Weight Difference (Auto-calculated)</mat-label>
+                <input matInput type="number" formControlName="weightDifference" readonly
+                       class="difference-field">
+                <mat-hint>Automatically calculated: Jamah Weight - Issue Weight</mat-hint>
+              </mat-form-field>
+            </div>
+          </div>
+
+          <!-- Work Order Details Section -->
+          <div class="polish-section">
+            <h4>
+              <mat-icon>description</mat-icon>
+              Work Order Details
+            </h4>
+            
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Party Name:</span>
+                <span class="detail-value">{{ selectedPolishOrder.partyName }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Product Type:</span>
+                <span class="detail-value">{{ selectedPolishOrder.productType || selectedPolishOrder.itemDetails }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Expected Completion:</span>
+                <span class="detail-value">{{ formatDate(selectedPolishOrder.expectedCompletionDate) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Assigned Date:</span>
+                <span class="detail-value">{{ formatDate(selectedPolishOrder.assignedDate) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Image Upload Section -->
+          <div class="polish-section">
+            <div class="section-header">
+              <h4>
+                <mat-icon>camera_alt</mat-icon>
+                Attach Images
+              </h4>
+              <div class="update-image-upload-buttons">
+                <input type="file" #polishUpdateFileInput multiple accept="image/*" 
+                       (change)="onUpdateFileSelected($event)" style="display: none;">
+                <button mat-raised-button color="accent" type="button" 
+                        (click)="polishUpdateFileInput.click()">
+                  <mat-icon>attach_file</mat-icon>
+                  Attach Images
+                </button>
+              </div>
+            </div>
+
+            <!-- Update Image Previews -->
+            <div class="update-image-previews" *ngIf="updateImagePreviewUrls.length > 0">
+              <div *ngFor="let url of updateImagePreviewUrls; let i = index" class="update-image-preview">
+                <img [src]="url" alt="Polish Update Preview" class="update-preview-image">
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeUpdateImage(i)" class="remove-update-image-btn">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="image-upload-hint" *ngIf="updateImagePreviewUrls.length === 0">
+              <mat-icon>cloud_upload</mat-icon>
+              <p>Attach images showing completed polish work (optional)</p>
+            </div>
+          </div>
+
+          <!-- Notes and Approval Section -->
+          <div class="polish-section">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Notes</mat-label>
+              <textarea matInput formControlName="notes" rows="3" 
+                        placeholder="Add any additional notes about the polish work..."></textarea>
+            </mat-form-field>
+
+            <div class="approval-section">
+              <mat-checkbox formControlName="approved" color="primary">
+                <span class="approval-text">
+                  <mat-icon>verified</mat-icon>
+                  Approved
+                </span>
+              </mat-checkbox>
+            </div>
+          </div>
+
+        </form>
+      </mat-card-content>
+      
+      <mat-card-actions class="modal-actions">
+        <button mat-button (click)="closePolishUpdateModal()" class="cancel-btn">
+          <mat-icon>cancel</mat-icon>
+          Cancel
+        </button>
+        <button mat-raised-button color="primary" (click)="submitPolishUpdate()" 
+                [disabled]="updatingStage || polishUpdateForm.invalid" class="update-btn">
+          <mat-spinner *ngIf="updatingStage" diameter="20"></mat-spinner>
+          <mat-icon *ngIf="!updatingStage">save</mat-icon>
+          {{ updatingStage ? 'Updating...' : 'Update Polish Stage' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-container>
+
 <!-- Dispatch Modal -->
   <ng-container *ngIf="selectedOrder">
     <div class="modal-overlay" (click)="closeDispatchModal()">

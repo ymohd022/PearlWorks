@@ -130,9 +130,16 @@ export class ApiService {
   }
 
   getManagerStageOrders(stage: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/manager/stage-orders/${stage}`, {
+    // For polish, use manager-polish route
+    if (stage === 'polish') {
+      return this.http.get(`${this.apiUrl}/manager/polish/assigned-orders`, {
+        headers: this.getHeaders(),
+      });
+    }
+    // For other stages, fallback to manager route
+    return this.http.get(`${this.apiUrl}/manager/assigned-orders/${stage}`, {
       headers: this.getHeaders(),
-    })
+    });
   }
 
   getDispatchReadyOrders(): Observable<any>
@@ -362,9 +369,10 @@ getDispatchStatistics(): Observable<any>
 
   // Polish endpoints
   getPolishStatistics(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/polish/statistics`, {
+    // Use manager-polish route for statistics
+    return this.http.get(`${this.apiUrl}/manager/polish/statistics`, {
       headers: this.getHeaders(),
-    })
+    });
   }
 
   returnStones(workOrderId: string, stones: any[]): Observable<any> {
