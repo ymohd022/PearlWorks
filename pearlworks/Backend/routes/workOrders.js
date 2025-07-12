@@ -297,7 +297,7 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
   try {
     await connection.beginTransaction()
 
-    const { partyName, poNumber, poDate, itemDetails, modelNumber, descriptionOfWork, expectedCompletionDate } =
+    const { partyName, poNumber, poDate, itemDetails, modelNumber, descriptionOfWork, expectedCompletionDate, approxWeight } =
       req.body
 
     let stones = []
@@ -334,25 +334,26 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
     }
 
     const [result] = await connection.execute(
-      `INSERT INTO work_orders (
-        work_order_number, party_name, po_number, po_date, item_details, 
-        model_number, description_of_work, status, expected_completion_date, 
-        images, created_by, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        workOrderNumber,
-        partyName,
-        poNumber || null,
-        poDate || null,
-        itemDetails,
-        modelNumber || null,
-        descriptionOfWork || null,
-        "pending",
-        expectedCompletionDate || null,
-        imagePaths.length > 0 ? JSON.stringify(imagePaths) : null,
-        req.user?.id || 1,
-      ],
-    )
+  `INSERT INTO work_orders (
+    work_order_number, party_name, po_number, po_date, item_details, 
+    model_number, description_of_work, status, expected_completion_date, 
+    images, created_by, created_at, approx_weight
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
+  [
+    workOrderNumber,
+    partyName,
+    poNumber || null,
+    poDate || null,
+    itemDetails,
+    modelNumber || null,
+    descriptionOfWork || null,
+    "pending",
+    expectedCompletionDate || null,
+    imagePaths.length > 0 ? JSON.stringify(imagePaths) : null,
+    req.user?.id || 1,
+    req.body.approxWeight || 0.000 // Add this line
+  ],
+);
 
     const workOrderId = result.insertId
 

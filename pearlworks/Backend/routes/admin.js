@@ -1,6 +1,7 @@
 const express = require("express")
 const { body, validationResult } = require("express-validator")
 const db = require("../config/database")
+const bcrypt = require("bcrypt")
 const { authenticateToken, authorizeRoles } = require("../middleware/auth")
 
 const router = express.Router()
@@ -355,8 +356,7 @@ router.post(
       }
 
       // Hash password
-      const saltRounds = 10
-      const hashedPassword = await bcrypt.hash(password, saltRounds)
+      const hashedPassword = await bcrypt.hash(password, 10)
 
       // Create user
       const [result] = await db.execute(

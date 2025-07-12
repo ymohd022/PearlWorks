@@ -139,6 +139,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       poDate: [""],
       itemDetails: ["", Validators.required],
       descriptionOfWork: [""],
+      approxWeight: [0, [Validators.min(0)]],
       expectedCompletionDate: [""],
       images: [[]],
       stones: this.fb.array([]),
@@ -627,19 +628,22 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   // Updated to load original received stones (is_received = 1)
   loadOriginalReceivedStones(workOrderId: string): void {
-    this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          // Filter only received stones from work order creation
-          this.originalReceivedStones = (response.data.stones || []).filter((stone: any) => stone.isReceived)
-        }
-      },
-      error: (error) => {
-        console.error("Error loading original received stones:", error)
-        this.originalReceivedStones = []
-      },
-    })
-  }
+  this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
+    next: (response) => {
+      if (response.success && response.data) {
+        // Filter only received stones from work order creation
+        this.originalReceivedStones = (response.data.stones || []).filter((stone: any) => stone.isReceived);
+        // Also set originalStones for display
+        this.originalStones = [...this.originalReceivedStones]; // ADD THIS LINE
+      }
+    },
+    error: (error) => {
+      console.error("Error loading original received stones:", error);
+      this.originalReceivedStones = [];
+      this.originalStones = []; // ADD THIS LINE
+    },
+  });
+}
 
   // Stone Management
   addStoneRow(): void {
@@ -716,6 +720,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       poDate: formValue.poDate ? this.formatDateForBackend(formValue.poDate) : undefined,
       itemDetails: formValue.itemDetails,
       modelNumber: formValue.modelNumber,
+      approxWeight: formValue.approxWeight,
       descriptionOfWork: formValue.descriptionOfWork,
       expectedCompletionDate: formValue.expectedCompletionDate
         ? this.formatDateForBackend(formValue.expectedCompletionDate)

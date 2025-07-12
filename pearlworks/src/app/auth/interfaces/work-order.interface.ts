@@ -6,6 +6,7 @@ export interface WorkOrder {
   poDate?: Date
   itemDetails?: string
   modelNumber?: string
+  approxWeight?: number;
   descriptionOfWork?: string
   status: WorkOrderStatus
   createdDate: Date
@@ -69,6 +70,7 @@ export interface CreateWorkOrderRequest {
   poDate?: string // Changed from Date to string
   itemDetails?: string
   modelNumber?: string
+  approxWeight?: number
   descriptionOfWork?: string
   expectedCompletionDate?: string // Changed from Date to string
   images?: File[] // Add images property

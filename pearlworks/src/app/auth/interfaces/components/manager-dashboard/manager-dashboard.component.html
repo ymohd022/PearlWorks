@@ -114,6 +114,13 @@
                 (valueChange)="createOrderForm.patchValue({descriptionOfWork: $event})">
               </app-autocomplete-input>
                   </div>
+                  <div class="form-row">
+  <mat-form-field appearance="outline">
+    <mat-label>Approximate Weight (g)</mat-label>
+    <input matInput type="number" formControlName="approxWeight" step="0.001" min="0">
+    <mat-hint>Estimated total weight</mat-hint>
+  </mat-form-field>
+</div>
 
                   <!-- Image Upload Section -->
                   <div class="form-section">
@@ -564,9 +571,9 @@
                 <mat-icon>local_shipping</mat-icon>
                 <span class="toolbar-title">Dispatch Management</span>
                 <span class="toolbar-spacer"></span>
-                <button mat-icon-button (click)="logout()" matTooltip="Logout">
+                <!-- <button mat-icon-button (click)="logout()" matTooltip="Logout">
                   <mat-icon>logout</mat-icon>
-                </button>
+                </button> -->
               </mat-toolbar>
               
               <!-- Statistics Cards -->
@@ -1287,7 +1294,7 @@
               </mat-form-field>
             </div>
 
-            <div class="polish-form-row">
+            <!-- <div class="polish-form-row">
               <mat-form-field appearance="outline">
                 <mat-label>Sorting Issue</mat-label>
                 <input matInput type="number" formControlName="sortingIssue" step="0.001">
@@ -1297,7 +1304,7 @@
                 <mat-label>Sorting Jamah</mat-label>
                 <input matInput type="number" formControlName="sortingJamah" step="0.001">
               </mat-form-field>
-            </div>
+            </div> -->
 
             <div class="polish-form-row">
               <mat-form-field appearance="outline" class="full-width">
@@ -1306,33 +1313,6 @@
                        class="difference-field">
                 <mat-hint>Automatically calculated: Jamah Weight - Issue Weight</mat-hint>
               </mat-form-field>
-            </div>
-          </div>
-
-          <!-- Work Order Details Section -->
-          <div class="polish-section">
-            <h4>
-              <mat-icon>description</mat-icon>
-              Work Order Details
-            </h4>
-            
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">Party Name:</span>
-                <span class="detail-value">{{ selectedPolishOrder.partyName }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Product Type:</span>
-                <span class="detail-value">{{ selectedPolishOrder.productType || selectedPolishOrder.itemDetails }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Expected Completion:</span>
-                <span class="detail-value">{{ formatDate(selectedPolishOrder.expectedCompletionDate) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Assigned Date:</span>
-                <span class="detail-value">{{ formatDate(selectedPolishOrder.assignedDate) }}</span>
-              </div>
             </div>
           </div>
 
