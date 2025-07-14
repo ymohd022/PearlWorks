@@ -628,22 +628,22 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   // Updated to load original received stones (is_received = 1)
   loadOriginalReceivedStones(workOrderId: string): void {
-  this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
-    next: (response) => {
-      if (response.success && response.data) {
-        // Filter only received stones from work order creation
-        this.originalReceivedStones = (response.data.stones || []).filter((stone: any) => stone.isReceived);
-        // Also set originalStones for display
-        this.originalStones = [...this.originalReceivedStones]; // ADD THIS LINE
-      }
-    },
-    error: (error) => {
-      console.error("Error loading original received stones:", error);
-      this.originalReceivedStones = [];
-      this.originalStones = []; // ADD THIS LINE
-    },
-  });
-}
+    this.workOrderService.getWorkOrderDetails(workOrderId).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          // Filter only received stones from work order creation
+          this.originalReceivedStones = (response.data.stones || []).filter((stone: any) => stone.isReceived)
+          // Also set originalStones for display
+          this.originalStones = [...this.originalReceivedStones] // ADD THIS LINE
+        }
+      },
+      error: (error) => {
+        console.error("Error loading original received stones:", error)
+        this.originalReceivedStones = []
+        this.originalStones = [] // ADD THIS LINE
+      },
+    })
+  }
 
   // Stone Management
   addStoneRow(): void {
@@ -959,11 +959,14 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   formatDate(date: Date | string | undefined): string {
     if (!date) return "N/A"
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+    const d = new Date(date)
+    return `${d.getDate().toString().padStart(2, "0")}:${(d.getMonth() + 1).toString().padStart(2, "0")}:${d.getFullYear()}`
+  }
+
+  formatDateDetail(date: Date | string | undefined): string {
+    if (!date) return "Not assigned"
+    const d = new Date(date)
+    return `${d.getDate().toString().padStart(2, "0")}:${(d.getMonth() + 1).toString().padStart(2, "0")}:${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`
   }
 
   calculateProgress(workOrder: WorkOrder): number {
@@ -982,19 +985,41 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     return currentStage || "completed"
   }
 
-  // Stone weight conversion methods
-  onWeightGramsChange(index: number, event: any): void {
-    const value = Number.parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
-    const stoneControl = this.stones.at(index)
-    stoneControl.patchValue({ weightCarats: Number.parseFloat(carats) }, { emitEvent: false })
+  // Updated weight conversion methods to use blur events
+  onWeightGramsBlur(index: number, event: any): void {
+    const inputValue = event.target.value.trim()
+    if (inputValue === "") return
+
+    const value = Number.parseFloat(inputValue)
+    if (!isNaN(value) && value > 0) {
+      const carats = Number.parseFloat((value * 5).toFixed(3))
+      const stoneControl = this.stones.at(index)
+      stoneControl.patchValue(
+        {
+          weightGrams: value,
+          weightCarats: carats,
+        },
+        { emitEvent: false },
+      )
+    }
   }
 
-  onWeightCaratsChange(index: number, event: any): void {
-    const value = Number.parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
-    const stoneControl = this.stones.at(index)
-    stoneControl.patchValue({ weightGrams: Number.parseFloat(grams) }, { emitEvent: false })
+  onWeightCaratsBlur(index: number, event: any): void {
+    const inputValue = event.target.value.trim()
+    if (inputValue === "") return
+
+    const value = Number.parseFloat(inputValue)
+    if (!isNaN(value) && value > 0) {
+      const grams = Number.parseFloat((value / 5).toFixed(3))
+      const stoneControl = this.stones.at(index)
+      stoneControl.patchValue(
+        {
+          weightGrams: grams,
+          weightCarats: value,
+        },
+        { emitEvent: false },
+      )
+    }
   }
 
   private setupDateSubscriptions(): void {
@@ -1011,7 +1036,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   }
 
   formatWeight(value: number | undefined): string {
-    return typeof value === "number" && !isNaN(value) ? value.toFixed(3) : "0.000"
+    if (typeof value === "number" && !isNaN(value)) {
+      return value.toString()
+    }
+    return ""
   }
 
   logout(): void {
@@ -1062,37 +1090,49 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.calculateStonesTotals()
   }
 
-  // Weight conversion for setting stones
-  onSettingWeightGramsChange(index: number, event: any, isReceived = true): void {
-    const value = Number.parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
-    const stonesArray = isReceived ? this.receivedStones : this.returnedStones
-    const stoneControl = stonesArray.at(index)
+  // Updated weight conversion for setting stones using text input
+  onSettingWeightGramsBlur(index: number, event: any, isReceived = true): void {
+    const inputValue = event.target.value.trim()
+    if (inputValue === "") return
 
-    stoneControl.patchValue(
-      {
-        weightCarats: Number.parseFloat(carats),
-      },
-      { emitEvent: false },
-    )
+    const value = Number.parseFloat(inputValue)
+    if (!isNaN(value) && value > 0) {
+      const carats = Number.parseFloat((value * 5).toFixed(3))
+      const stonesArray = isReceived ? this.receivedStones : this.returnedStones
+      const stoneControl = stonesArray.at(index)
 
-    this.calculateStonesTotals()
+      stoneControl.patchValue(
+        {
+          weightGrams: value,
+          weightCarats: carats,
+        },
+        { emitEvent: false },
+      )
+
+      this.calculateStonesTotals()
+    }
   }
 
-  onSettingWeightCaratsChange(index: number, event: any, isReceived = true): void {
-    const value = Number.parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
-    const stonesArray = isReceived ? this.receivedStones : this.returnedStones
-    const stoneControl = stonesArray.at(index)
+  onSettingWeightCaratsBlur(index: number, event: any, isReceived = true): void {
+    const inputValue = event.target.value.trim()
+    if (inputValue === "") return
 
-    stoneControl.patchValue(
-      {
-        weightGrams: Number.parseFloat(grams),
-      },
-      { emitEvent: false },
-    )
+    const value = Number.parseFloat(inputValue)
+    if (!isNaN(value) && value > 0) {
+      const grams = Number.parseFloat((value / 5).toFixed(3))
+      const stonesArray = isReceived ? this.receivedStones : this.returnedStones
+      const stoneControl = stonesArray.at(index)
 
-    this.calculateStonesTotals()
+      stoneControl.patchValue(
+        {
+          weightGrams: grams,
+          weightCarats: value,
+        },
+        { emitEvent: false },
+      )
+
+      this.calculateStonesTotals()
+    }
   }
 
   // Calculate weight difference between received and returned stones
@@ -1209,30 +1249,34 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.calculateStoneBalance()
   }
 
-  onUpdateWeightGramsChange(index: number, event: any): void {
+  onUpdateWeightGramsBlur(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const carats = (value * 5).toFixed(3)
-    const stoneControl = this.addedStones.at(index)
-    stoneControl.patchValue(
-      {
-        weightCarats: Number.parseFloat(carats),
-      },
-      { emitEvent: false },
-    )
-    this.calculateStoneBalance()
+    if (value > 0) {
+      const carats = Number.parseFloat((value * 5).toFixed(3))
+      const stoneControl = this.addedStones.at(index)
+      stoneControl.patchValue(
+        {
+          weightCarats: carats,
+        },
+        { emitEvent: false },
+      )
+      this.calculateStoneBalance()
+    }
   }
 
-  onUpdateWeightCaratsChange(index: number, event: any): void {
+  onUpdateWeightCaratsBlur(index: number, event: any): void {
     const value = Number.parseFloat(event.target.value) || 0
-    const grams = (value / 5).toFixed(3)
-    const stoneControl = this.addedStones.at(index)
-    stoneControl.patchValue(
-      {
-        weightGrams: Number.parseFloat(grams),
-      },
-      { emitEvent: false },
-    )
-    this.calculateStoneBalance()
+    if (value > 0) {
+      const grams = Number.parseFloat((value / 5).toFixed(3))
+      const stoneControl = this.addedStones.at(index)
+      stoneControl.patchValue(
+        {
+          weightGrams: grams,
+        },
+        { emitEvent: false },
+      )
+      this.calculateStoneBalance()
+    }
   }
 
   calculateStoneBalance(): void {
@@ -1283,17 +1327,6 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.updateImagePreviewUrls.splice(index, 1)
     this.stageUpdateForm.patchValue({
       updateImages: this.updateImages,
-    })
-  }
-
-  formatDateDetail(date: Date | string | undefined): string {
-    if (!date) return "Not assigned"
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     })
   }
 }

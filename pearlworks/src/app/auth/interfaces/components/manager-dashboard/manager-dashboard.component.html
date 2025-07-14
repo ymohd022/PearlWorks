@@ -183,29 +183,28 @@
                       (valueChange)="stone.patchValue({type: $event})">
                     </app-autocomplete-input>
 
-
                             <mat-form-field appearance="outline">
                               <mat-label>Pieces *</mat-label>
                               <input matInput type="number" formControlName="pieces" min="1">
                             </mat-form-field>
 
                             <mat-form-field appearance="outline">
-                      <mat-label>Weight (g) *</mat-label>
-                      <input matInput type="number" formControlName="weightGrams" 
-                             step="0.001" min="0.001" 
-                             (input)="onWeightGramsChange(i, $event)"
-                             [value]="formatWeight(stone.get('weightGrams')?.value)">
-                      <mat-hint>Auto-converts to carats (×5)</mat-hint>
-                    </mat-form-field>
+                              <mat-label>Weight (g) *</mat-label>
+                              <input matInput type="number" formControlName="weightGrams" 
+                                     step="0.001" min="0.001" 
+                                     (blur)="onWeightGramsBlur(i, $event)"
+                                     [value]="formatWeight(stone.get('weightGrams')?.value)">
+                              <mat-hint>Auto-converts to carats (×5) when you finish entering</mat-hint>
+                            </mat-form-field>
 
-                    <mat-form-field appearance="outline">
-                      <mat-label>Weight (ct) *</mat-label>
-                      <input matInput type="number" formControlName="weightCarats" 
-                             step="0.001" min="0.001"
-                             (input)="onWeightCaratsChange(i, $event)"
-                             [value]="formatWeight(stone.get('weightCarats')?.value)">
-                      <mat-hint>Auto-converts to grams (÷5)</mat-hint>
-                    </mat-form-field>
+                            <mat-form-field appearance="outline">
+                              <mat-label>Weight (ct) *</mat-label>
+                              <input matInput type="number" formControlName="weightCarats" 
+                                     step="0.001" min="0.001"
+                                     (blur)="onWeightCaratsBlur(i, $event)"
+                                     [value]="formatWeight(stone.get('weightCarats')?.value)">
+                              <mat-hint>Auto-converts to grams (÷5) when you finish entering</mat-hint>
+                            </mat-form-field>
 
                             <button mat-icon-button color="warn" type="button" (click)="removeStoneRow(i)" 
                                     [disabled]="stones.length === 1">
@@ -571,9 +570,6 @@
                 <mat-icon>local_shipping</mat-icon>
                 <span class="toolbar-title">Dispatch Management</span>
                 <span class="toolbar-spacer"></span>
-                <!-- <button mat-icon-button (click)="logout()" matTooltip="Logout">
-                  <mat-icon>logout</mat-icon>
-                </button> -->
               </mat-toolbar>
               
               <!-- Statistics Cards -->
@@ -944,14 +940,16 @@
 
                 <mat-form-field appearance="outline">
                   <input matInput type="number" formControlName="weightGrams" step="0.001" 
-                         (input)="onSettingWeightGramsChange(i, $event, true)"
+                         (blur)="onSettingWeightGramsBlur(i, $event, true)"
                          [value]="formatWeight(stone.get('weightGrams')?.value)">
+                  <mat-hint>Auto-converts to carats on blur</mat-hint>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
                   <input matInput type="number" formControlName="weightCarats" step="0.001"
-                         (input)="onSettingWeightCaratsChange(i, $event, true)"
+                         (blur)="onSettingWeightCaratsBlur(i, $event, true)"
                          [value]="formatWeight(stone.get('weightCarats')?.value)">
+                  <mat-hint>Auto-converts to grams on blur</mat-hint>
                 </mat-form-field>
 
                 <button mat-icon-button color="warn" type="button" 
@@ -1012,14 +1010,16 @@
 
                 <mat-form-field appearance="outline">
                   <input matInput type="number" formControlName="weightGrams" step="0.001"
-                         (input)="onSettingWeightGramsChange(i, $event, false)"
+                         (blur)="onSettingWeightGramsBlur(i, $event, false)"
                          [value]="formatWeight(stone.get('weightGrams')?.value)">
+                  <mat-hint>Auto-converts to carats on blur</mat-hint>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
                   <input matInput type="number" formControlName="weightCarats" step="0.001"
-                         (input)="onSettingWeightCaratsChange(i, $event, false)"
+                         (blur)="onSettingWeightCaratsBlur(i, $event, false)"
                          [value]="formatWeight(stone.get('weightCarats')?.value)">
+                  <mat-hint>Auto-converts to grams on blur</mat-hint>
                 </mat-form-field>
 
                 <button mat-icon-button color="warn" type="button" 
@@ -1226,7 +1226,7 @@
   </div>
 </ng-container>
 
-<!-- Add this after the existing modals in manager-dashboard.component.html -->
+<!-- Polish Update Modal -->
 <ng-container *ngIf="selectedPolishOrder">
   <div class="modal-overlay" (click)="closePolishUpdateModal()">
     <mat-card class="polish-update-modal" (click)="$event.stopPropagation()">
@@ -1293,18 +1293,6 @@
                        placeholder="25.000">
               </mat-form-field>
             </div>
-
-            <!-- <div class="polish-form-row">
-              <mat-form-field appearance="outline">
-                <mat-label>Sorting Issue</mat-label>
-                <input matInput type="number" formControlName="sortingIssue" step="0.001">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Sorting Jamah</mat-label>
-                <input matInput type="number" formControlName="sortingJamah" step="0.001">
-              </mat-form-field>
-            </div> -->
 
             <div class="polish-form-row">
               <mat-form-field appearance="outline" class="full-width">

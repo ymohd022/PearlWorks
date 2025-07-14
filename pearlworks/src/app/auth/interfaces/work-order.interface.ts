@@ -3,15 +3,15 @@ export interface WorkOrder {
   workOrderNumber: string
   partyName: string
   poNumber?: string
-  poDate?: Date
+  poDate?: string
   itemDetails?: string
   modelNumber?: string
   approxWeight?: number;
   descriptionOfWork?: string
   status: WorkOrderStatus
-  createdDate: Date
-  expectedCompletionDate?: Date
-  completedDate?: Date
+  createdDate: string
+  expectedCompletionDate?: string
+  completedDate?: string
   grossWeight?: number
   netWeight?: number
   dispatchedBy?: string
@@ -24,9 +24,9 @@ export interface WorkOrderStage {
   id: string
   stageName: StageType
   karigar?: string
-  issueDate?: Date
+  issueDate?: string
   issueWeight?: number
-  jamahDate?: Date
+  jamahDate?: string
   jamahWeight?: number
   sortingIssue?: number
   sortingJamah?: number
@@ -49,7 +49,7 @@ export interface AssignedWorker {
   stageType: StageType
   workerId: string
   workerName: string
-  assignedDate: Date
+  assignedDate: string
 }
 
 export interface ActivityLog {
