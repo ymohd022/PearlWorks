@@ -42,8 +42,9 @@ router.get("/work-orders", authenticateToken, async (req, res) => {
         wo.completed_date,
         wo.gross_weight,
         wo.net_weight,
+        wo.approx_weight,
         wo.dispatched_by,
-        GROUP_CONCAT(DISTINCT CONCAT(wos.stage_name, ':', wos.status, ':', COALESCE(wos.karigar_name, ''), ':', COALESCE(wos.issue_weight, 0), ':', COALESCE(wos.jamah_weight, 0)) SEPARATOR '|') as stages_info,
+        GROUP_CONCAT(DISTINCT CONCAT(wos.stage_name, ':', wos.status, ':', COALESCE(wos.karigar_name, ''), ':', COALESCE(wos.issue_weight, 0), ':', COALESCE(wos.jamah_weight, 0), ':', COALESCE(DATE_FORMAT(wos.issue_date, '%Y-%m-%d'), ''), ':', COALESCE(DATE_FORMAT(wos.jamah_date, '%Y-%m-%d'), '')) SEPARATOR '|') as stages_info,
         GROUP_CONCAT(DISTINCT CONCAT(s.type, ':', s.pieces, ':', s.weight_grams, ':', s.weight_carats, ':', s.is_received) SEPARATOR '|') as stones_info,
         GROUP_CONCAT(DISTINCT CONCAT(wa.stage_type, ':', wa.user_id, ':', u.name, ':', wa.assigned_date) SEPARATOR '|') as assignments_info
       FROM work_orders wo
@@ -92,6 +93,7 @@ router.get("/work-orders", authenticateToken, async (req, res) => {
       completedDate: order.completed_date,
       grossWeight: order.gross_weight,
       netWeight: order.net_weight,
+      approxWeight: order.approx_weight || 0,
       dispatchedBy: order.dispatched_by,
       stages: parseStagesInfo(order.stages_info),
       stones: parseStonesInfo(order.stones_info),
@@ -126,6 +128,7 @@ router.get("/assigned-orders/:stage", authenticateToken, async (req, res) => {
         wo.expected_completion_date,
         wo.created_at,
         wo.gross_weight as issue_weight,
+        wo.approx_weight,
         wos.jamah_weight,
         wos.status,
         wos.notes,
@@ -170,6 +173,7 @@ router.get("/assigned-orders/:stage", authenticateToken, async (req, res) => {
       weightDifference: order.weight_difference || 0,
       assignedWorker: order.assigned_worker || "Unassigned",
       stones: parseStonesInfo(order.stones_info) || [],
+      approxWeight: order.approx_weight || 0,
     }))
 
     res.json({
@@ -436,7 +440,7 @@ function parseStagesInfo(stagesInfo) {
 
   try {
     return stagesInfo.split("|").map((stageStr) => {
-      const [stageName, status, karigar, issueWeight, jamahWeight] = stageStr.split(":")
+      const [stageName, status, karigar, issueWeight, jamahWeight, assignedDate, jamahDate] = stageStr.split(":")
       return {
         id: `${stageName}_stage`,
         stageName,
@@ -444,6 +448,8 @@ function parseStagesInfo(stagesInfo) {
         karigar: karigar || null,
         issueWeight: Number.parseFloat(issueWeight) || 0,
         jamahWeight: Number.parseFloat(jamahWeight) || 0,
+        assignedDate: assignedDate || null,
+        jamahDate: jamahDate || null,
         approved: false,
       }
     })

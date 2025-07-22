@@ -35,6 +35,7 @@ router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "adm
         wo.item_details as product_type,
         wo.expected_completion_date,
         wo.created_at,
+        wo.approx_weight,
         wos.issue_weight,
         wos.jamah_weight,
         wos.status,
@@ -86,6 +87,7 @@ router.get("/assigned-orders", authenticateToken, authorizeRoles("framing", "adm
       approved: order.approved || false,
       assignedWorkerName: order.assigned_worker_name || "Unassigned",
       assignedWorkerEmail: order.assigned_worker_email || "",
+      approxWeight: order.approx_weight || 0,
     }))
 
     res.json({

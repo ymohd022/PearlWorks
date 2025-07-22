@@ -153,15 +153,14 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.stageUpdateForm = this.fb.group({
       status: ["", Validators.required],
       jamahWeight: [0],
-      sortingIssue: [0],
-      sortingJamah: [0],
+      sorting: [false], // Changed from sortingIssue and sortingJamah to single checkbox
       notes: [""],
       approved: [false],
       // Setting-specific fields
-      receivedStones: this.fb.array([]),
+      receivedStones: this.fb.array([]), // No Validators.required here
       returnedStones: this.fb.array([]),
       weightDifference: [{ value: 0, disabled: true }],
-      issueDate: [""],
+      assignmentDate: [{ value: "", disabled: true }], // Changed from issueDate to assignmentDate (readonly)
       jamahDate: [""],
       stoneBalance: [{ value: 0, disabled: true }],
       addedStones: this.fb.array([]),
@@ -201,12 +200,11 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.polishUpdateForm = this.fb.group({
       status: ["", Validators.required],
       jamahWeight: [0],
-      sortingIssue: [0],
-      sortingJamah: [0],
+      sorting: [false], // Changed from sortingIssue and sortingJamah
       notes: [""],
       approved: [false],
       karigarName: [""],
-      issueDate: [""],
+      assignmentDate: [{ value: "", disabled: true }], // Changed from issueDate to assignmentDate (readonly)
       jamahDate: [""],
       weightDifference: [{ value: 0, disabled: true }],
       updateImages: [[]],
@@ -258,12 +256,11 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.polishUpdateForm.patchValue({
       status: order.status || "not-started",
       jamahWeight: order.jamahWeight || 0,
-      sortingIssue: order.sortingIssue || 0,
-      sortingJamah: order.sortingJamah || 0,
+      sorting: order.sorting || false, // Changed from sortingIssue and sortingJamah
       notes: order.notes || "",
       approved: order.approved || false,
       karigarName: order.karigarName || "",
-      issueDate: order.issueDate || "",
+      assignmentDate: this.formatDateForInput(order.assignedDate), // Show assignment date (readonly)
       jamahDate: order.jamahDate || "",
       weightDifference: order.weightDifference || 0,
     })
@@ -282,12 +279,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       stage: "polish",
       status: formValue.status,
       jamahWeight: formValue.jamahWeight,
-      sortingIssue: formValue.sortingIssue,
-      sortingJamah: formValue.sortingJamah,
+      sorting: formValue.sorting, // Changed from sortingIssue and sortingJamah
       notes: formValue.notes,
       approved: formValue.approved,
       karigarName: formValue.karigarName,
-      issueDate: formValue.issueDate,
       jamahDate: formValue.jamahDate,
       updateImages: this.updateImages,
     }
@@ -845,11 +840,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.stageUpdateForm.patchValue({
       status: order.status || "not-started",
       jamahWeight: order.jamahWeight || 0,
-      sortingIssue: order.sortingIssue || 0,
-      sortingJamah: order.sortingJamah || 0,
+      sorting: order.sorting || false, // Changed from sortingIssue and sortingJamah
       notes: order.notes || "",
       approved: order.approved || false,
-      issueDate: order.issueDate || "",
+      assignmentDate: this.formatDateForInput(order.assignedDate), // Show assignment date (readonly)
       jamahDate: order.jamahDate || "",
     })
 
@@ -876,11 +870,9 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       stage: this.selectedStage,
       status: formValue.status,
       jamahWeight: formValue.jamahWeight,
-      sortingIssue: formValue.sortingIssue,
-      sortingJamah: formValue.sortingJamah,
+      sorting: formValue.sorting, // Changed from sortingIssue and sortingJamah
       notes: formValue.notes,
       approved: formValue.approved,
-      issueDate: formValue.issueDate,
       jamahDate: formValue.jamahDate,
       updateImages: this.updateImages,
     }
@@ -985,6 +977,40 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     return currentStage || "completed"
   }
 
+  // Returns the status of a given stage for a work order
+  getStageStatus(order: any, stage: string): string {
+    if (!order.stages) return 'not-started';
+    const found = order.stages.find((s: any) => s.stageName === stage);
+    return found ? found.status : 'not-started';
+  }
+
+  // Calculates progress as percentage of completed stages out of all 5
+  calculateProgressAllStages(order: any): number {
+    if (!order.stages) return 0;
+    const totalStages = this.stageTypes.length;
+    const completedStages = this.stageTypes.filter(stage => this.getStageStatus(order, stage) === 'completed').length;
+    return Math.round((completedStages / totalStages) * 100);
+  }
+
+  // Returns the number of days taken for a stage (from assignment to now or to completion)
+  getAssignmentDays(order: any, stage: string): number | null {
+    if (!order.stages) return null;
+    const stageInfo = order.stages.find((s: any) => s.stageName === stage);
+    if (!stageInfo || !stageInfo.assignedDate) return null;
+    const assigned = new Date(stageInfo.assignedDate);
+    let end: Date;
+    if (stageInfo.status === 'completed' && stageInfo.jamahDate) {
+      end = new Date(stageInfo.jamahDate);
+    } else if (stageInfo.status === 'completed' && stageInfo.completedDate) {
+      end = new Date(stageInfo.completedDate);
+    } else {
+      end = new Date();
+    }
+    // Calculate difference in days
+    const diff = Math.ceil((end.getTime() - assigned.getTime()) / (1000 * 60 * 60 * 24));
+    return diff >= 0 ? diff : 0;
+  }
+
   // Updated weight conversion methods to use blur events
   onWeightGramsBlur(index: number, event: any): void {
     const inputValue = event.target.value.trim()
@@ -1058,10 +1084,10 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Setting-specific stone management - Updated for received stones
   addReceivedStone(): void {
     const stoneGroup = this.fb.group({
-      type: ["", Validators.required],
-      pieces: [0, [Validators.required, Validators.min(0)]],
-      weightGrams: [0, [Validators.required, Validators.min(0)]],
-      weightCarats: [0, [Validators.required, Validators.min(0)]],
+      type: [""],
+      pieces: [0],
+      weightGrams: [0],
+      weightCarats: [0],
     })
     this.receivedStones.push(stoneGroup)
     this.calculateStonesTotals()
@@ -1205,7 +1231,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   // View Detail Modal Methods
   openDetailModal(order: any): void {
-    this.selectedOrderForDetail = order
+    this.selectedOrderForDetail = { ...order }
     this.loadOrderDetails(order.id)
   }
 
@@ -1219,12 +1245,16 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       next: (response) => {
         if (response.success && response.data) {
           this.detailImages = response.data.images || []
+          // Ensure stones data is properly assigned
+          this.selectedOrderForDetail.stones = response.data.stones || []
           console.log("Loaded images for work order:", this.detailImages)
+          console.log("Loaded stones for work order:", this.selectedOrderForDetail.stones)
         }
       },
       error: (error) => {
         console.error("Error loading order details:", error)
         this.detailImages = []
+        this.selectedOrderForDetail.stones = []
       },
     })
   }
@@ -1328,5 +1358,54 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.stageUpdateForm.patchValue({
       updateImages: this.updateImages,
     })
+  }
+
+  // Returns a per-stone-type summary for the Setting tab, including original received stones
+  getStoneTypeSummary(): Array<{ type: string, received: number, returned: number, difference: number, receivedPcs: number, returnedPcs: number, differencePcs: number }> {
+    const received: { [type: string]: number } = {}
+    const returned: { [type: string]: number } = {}
+    const receivedPcs: { [type: string]: number } = {}
+    const returnedPcs: { [type: string]: number } = {}
+
+    // Aggregate original received stones by type
+    this.originalReceivedStones.forEach(stone => {
+      const type = stone.type || 'Unknown'
+      const grams = Number(stone.weightGrams) || 0
+      const pcs = Number(stone.pieces) || 0
+      received[type] = (received[type] || 0) + grams
+      receivedPcs[type] = (receivedPcs[type] || 0) + pcs
+    })
+
+    // Aggregate received stones added in setting stage by type
+    this.receivedStones.controls.forEach(stone => {
+      const type = stone.get('type')?.value || 'Unknown'
+      const grams = Number(stone.get('weightGrams')?.value) || 0
+      const pcs = Number(stone.get('pieces')?.value) || 0
+      received[type] = (received[type] || 0) + grams
+      receivedPcs[type] = (receivedPcs[type] || 0) + pcs
+    })
+
+    // Aggregate returned stones by type
+    this.returnedStones.controls.forEach(stone => {
+      const type = stone.get('type')?.value || 'Unknown'
+      const grams = Number(stone.get('weightGrams')?.value) || 0
+      const pcs = Number(stone.get('pieces')?.value) || 0
+      returned[type] = (returned[type] || 0) + grams
+      returnedPcs[type] = (returnedPcs[type] || 0) + pcs
+    })
+
+    // Collect all unique types
+    const allTypes = Array.from(new Set([...Object.keys(received), ...Object.keys(returned)]))
+
+    // Build summary array
+    return allTypes.map(type => ({
+      type,
+      received: Number(received[type] || 0),
+      returned: Number(returned[type] || 0),
+      difference: Number(((received[type] || 0) - (returned[type] || 0)).toFixed(3)),
+      receivedPcs: Number(receivedPcs[type] || 0),
+      returnedPcs: Number(returnedPcs[type] || 0),
+      differencePcs: Number((receivedPcs[type] || 0) - (returnedPcs[type] || 0)),
+    }))
   }
 }
