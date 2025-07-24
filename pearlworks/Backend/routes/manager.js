@@ -97,6 +97,7 @@ router.get("/work-orders", authenticateToken, async (req, res) => {
       dispatchedBy: order.dispatched_by,
       stages: parseStagesInfo(order.stages_info),
       stones: parseStonesInfo(order.stones_info),
+      assignedDate: order.assigned_date,
       assignedWorkers: parseAssignmentsInfo(order.assignments_info),
     }))
 
@@ -174,6 +175,15 @@ router.get("/assigned-orders/:stage", authenticateToken, async (req, res) => {
       assignedWorker: order.assigned_worker || "Unassigned",
       stones: parseStonesInfo(order.stones_info) || [],
       approxWeight: order.approx_weight || 0,
+      // Add a stages array for frontend compatibility
+      stages: [
+        {
+          stageName: stage,
+          status: order.status || "not-started",
+          assignedDate: order.issue_date || order.assigned_date || null,
+          jamahDate: order.jamah_date || null,
+        }
+      ],
     }))
 
     res.json({

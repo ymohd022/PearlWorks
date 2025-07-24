@@ -78,100 +78,65 @@ router.get("/ready-orders", authenticateToken, async (req, res) => {
 // @access  Private
 router.get("/assigned-orders", authenticateToken, async (req, res) => {
   try {
-    console.log("Fetching dispatch assigned orders...")
-
-    // First, let's check if there are any worker assignments for dispatch
-    const [assignmentCheck] = await db.execute(`
-      SELECT COUNT(*) as count 
-      FROM worker_assignments 
-      WHERE stage_type = 'dispatch'
-    `)
-    console.log(`Found ${assignmentCheck[0].count} dispatch assignments`)
-
-    // Modified query with better error handling and debugging
-    const query = `
+    const [rows] = await db.execute(`
       SELECT 
         wo.id,
-        wo.work_order_number as workOrderNumber,
-        wo.party_name as partyName,
-        wo.completed_date as orderCompletedDate,
-        wo.dispatched_by as dispatchedBy,
+        wo.work_order_number AS workOrderNumber,
+        wo.party_name AS partyName,
+        wo.po_number AS poNumber,
+        wo.item_details AS itemDetails,
+        wo.gross_weight AS grossWeight,
+        wo.net_weight AS netWeight,
+        wo.approx_weight AS approxWeight,
+        wo.completed_date AS orderCompletedDate,
+        wo.dispatched_by AS dispatchedBy,
         wo.status,
-        wo.gross_weight as storedGrossWeight,
-        wo.net_weight as storedNetWeight,
-        -- Calculate gross weight from all stones (received)
-        COALESCE(
-          (SELECT SUM(s.weight_grams) 
-           FROM stones s 
-           WHERE s.work_order_id = wo.id AND (s.is_received = 1 OR s.is_received IS NULL)), 
-          0
-        ) as calculatedGrossWeight,
-        -- Calculate net weight (gross weight - returned stones)
-        COALESCE(
-          (SELECT SUM(s.weight_grams) 
-           FROM stones s 
-           WHERE s.work_order_id = wo.id AND (s.is_received = 1 OR s.is_received IS NULL)), 
-          0
-        ) - COALESCE(
-          (SELECT SUM(rs.weight_grams) 
-           FROM returned_stones rs 
-           WHERE rs.work_order_id = wo.id), 
-          0
-        ) as calculatedNetWeight,
-        -- Count stones for debugging
-        (SELECT COUNT(*) FROM stones s WHERE s.work_order_id = wo.id) as totalStones,
-        (SELECT COUNT(*) FROM stones s WHERE s.work_order_id = wo.id AND s.is_received = 1) as receivedStones,
-        CASE 
-          WHEN wo.status = 'dispatched' THEN 'dispatched'
-          ELSE 'ready'
-        END as dispatchStatus
+        GROUP_CONCAT(DISTINCT CONCAT(s.type, ':', s.pieces, ':', s.weight_grams, ':', s.weight_carats) SEPARATOR '|') as stones_info
       FROM work_orders wo
       INNER JOIN worker_assignments wa ON wo.id = wa.work_order_id
+      LEFT JOIN stones s ON wo.id = s.work_order_id
       WHERE wa.stage_type = 'dispatch'
-      ORDER BY 
-        CASE WHEN wo.status = 'completed' THEN 0 ELSE 1 END,
-        wo.created_at DESC
-    `
+      GROUP BY wo.id
+      ORDER BY wo.created_at DESC
+    `);
 
-    const [rows] = await db.execute(query)
-    console.log(`Found ${rows.length} orders assigned to dispatch`)
-
-    const orders = rows.map((row) => {
-      // Use calculated weights if available, otherwise fall back to stored weights
-      const grossWeight = row.calculatedGrossWeight > 0 ? row.calculatedGrossWeight : row.storedGrossWeight || 0
-      const netWeight = row.calculatedNetWeight > 0 ? row.calculatedNetWeight : row.storedNetWeight || 0
-
-      console.log(
-        `Order ${row.workOrderNumber}: Gross=${grossWeight}, Net=${netWeight}, Stones=${row.totalStones}, Received=${row.receivedStones}`,
-      )
-
-      return {
-        id: row.id.toString(),
-        workOrderNumber: row.workOrderNumber,
-        partyName: row.partyName,
-        orderCompletedDate: row.orderCompletedDate,
-        grossWeight: Number.parseFloat(grossWeight) || 0,
-        netWeight: Number.parseFloat(netWeight) || 0,
-        dispatchedBy: row.dispatchedBy || "",
-        status: row.dispatchStatus,
-      }
-    })
-
-    console.log(`Returning ${orders.length} dispatch orders`)
+    const transformedOrders = rows.map(order => ({
+      id: order.id.toString(),
+      workOrderNumber: order.workOrderNumber,
+      partyName: order.partyName,
+      poNumber: order.poNumber,
+      itemDetails: order.itemDetails,
+      grossWeight: order.grossWeight,
+      netWeight: order.netWeight,
+      approxWeight: order.approxWeight,
+      orderCompletedDate: order.orderCompletedDate,
+      dispatchedBy: order.dispatchedBy,
+      status: order.status,
+      stones: order.stones_info ? order.stones_info.split('|').map((stoneStr, idx) => {
+        const [type, pieces, weightGrams, weightCarats] = stoneStr.split(':');
+        return {
+          id: `stone_${idx}`,
+          type,
+          pieces: Number(pieces),
+          weightGrams: Number(weightGrams),
+          weightCarats: Number(weightCarats)
+        };
+      }) : []
+    }));
 
     res.json({
       success: true,
-      data: orders,
-    })
+      data: transformedOrders,
+    });
   } catch (error) {
-    console.error("Error fetching dispatch assigned orders:", error)
+    console.error("Error fetching dispatch assigned orders:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch orders assigned to dispatch",
+      message: "Failed to fetch dispatch assigned orders",
       error: error.message,
-    })
+    });
   }
-})
+});
 
 // @desc    Update dispatch status
 // @route   PUT /api/dispatch/update-status/:id

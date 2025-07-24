@@ -783,11 +783,12 @@ function parseStagesInfo(stagesInfo) {
 
   try {
     return stagesInfo.split("|").map((stageStr) => {
-      const [stageName, status] = stageStr.split(":")
+      const [stageName, status, assignedDate] = stageStr.split(":")
       return {
         id: `${stageName}_stage`,
         stageName,
         status: status || "not-started",
+        assignedDate: assignedDate || null
       }
     })
   } catch (error) {

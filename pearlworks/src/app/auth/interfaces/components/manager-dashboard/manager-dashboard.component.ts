@@ -10,6 +10,8 @@ import  { AutocompleteOption } from "../../services/autocomplete.service"
 import  { ApiService } from "../../services/api.service"
 import  { DispatchOrder, DispatchStatistics, DispatchUpdateRequest } from "../../dispatch.interface"
 import  { DispatchService } from "../../services/dispatch.service"
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 @Component({
   selector: "app-manager-dashboard",
@@ -41,6 +43,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     "orderCompletedDate",
     "grossWeight",
     "netWeight",
+    "daysTaken",
     "status",
     "actions",
   ]
@@ -195,6 +198,27 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
         },
       })
   }
+
+getDaysTaken(order: any, stage: string): number | string {
+  // For stage orders (framing, setting, polish, repair)
+  if (order.assignedDate) {
+    const start = new Date(order.assignedDate);
+    const end = order.status === 'completed' && order.jamahDate 
+      ? new Date(order.jamahDate) 
+      : new Date();
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  }
+  // For dispatch orders
+  else if (order.orderCompletedDate && (order.assignedDate || order.createdDate)) {
+    const start = new Date(order.assignedDate || order.createdDate);
+    const end = new Date(order.orderCompletedDate);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  }
+  // If neither, just return 'N/A' but don't break the UI
+  return 'N/A';
+}
 
   initializePolishUpdateForm(): void {
     this.polishUpdateForm = this.fb.group({
@@ -1407,5 +1431,40 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       returnedPcs: Number(returnedPcs[type] || 0),
       differencePcs: Number((receivedPcs[type] || 0) - (returnedPcs[type] || 0)),
     }))
+  }
+
+  downloadDispatchSummary(order: any) {
+    const doc = new jsPDF();
+
+    doc.text('Dispatch Order Summary', 14, 16);
+
+    autoTable(doc, {
+      startY: 24,
+      head: [['Field', 'Value']],
+      body: [
+        ['Item Details', order.itemDetails || ''],
+        ['PO Number', order.poNumber || ''],
+        ['Approximate Weight', order.approxWeight || ''],
+      ],
+    });
+
+    // Stones Table
+    if (order.stones && order.stones.length > 0) {
+      // Get the last Y position from the previous table
+      const lastY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 40;
+      doc.text('Stones Information', 14, lastY);
+      autoTable(doc, {
+        startY: lastY + 5,
+        head: [['Type', 'Pieces', 'Weight (g)', 'Weight (ct)']],
+        body: order.stones.map((stone: any) => [
+          stone.type,
+          stone.pieces,
+          stone.weightGrams,
+          stone.weightCarats,
+        ]),
+      });
+    }
+
+    doc.save(`Dispatch_Summary_${order.workOrderNumber}.pdf`);
   }
 }
