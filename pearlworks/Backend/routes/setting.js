@@ -17,7 +17,6 @@ router.get("/assigned-orders", authenticateToken, async (req, res) => {
         wo.work_order_number,
         wo.party_name,
         wo.item_details as product_type,
-        wo.model_number,
         wo.description_of_work,
         wo.expected_completion_date,
         wo.created_at,
@@ -78,7 +77,6 @@ router.get("/assigned-orders", authenticateToken, async (req, res) => {
           workOrderNumber: order.work_order_number,
           partyName: order.party_name,
           productType: order.product_type,
-          modelNumber: order.model_number,
           descriptionOfWork: order.description_of_work,
           issueWeight: order.issue_weight,
           jamahWeight: order.jamah_weight,
@@ -372,7 +370,6 @@ router.get(
           wo.work_order_number,
           wo.party_name,
           wo.item_details,
-          wo.model_number,
           wo.expected_completion_date
         FROM work_order_stages wos
         JOIN work_orders wo ON wos.work_order_id = wo.id

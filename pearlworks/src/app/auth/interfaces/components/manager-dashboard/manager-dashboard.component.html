@@ -379,7 +379,7 @@
     <!-- Stage Tabs -->
     <mat-tab *ngFor="let stage of stageTypes" [label]="stage | titlecase">
       <ng-template matTabContent>
-        <ng-container *ngIf="stage !== 'dispatch' && stage !== 'polish'; else polishOrDispatchTab">
+        <ng-container *ngIf="stage !== 'dispatch' && stage !== 'polish' && stage !== 'repair'; else polishOrDispatchTab">
           <div class="stage-content">
             <mat-toolbar class="stage-toolbar">
               <mat-icon>{{ stageIcons[stage] }}</mat-icon>
@@ -1289,10 +1289,10 @@
                 </mat-select>
               </mat-form-field>
 
-              <mat-form-field appearance="outline">
+              <!-- <mat-form-field appearance="outline">
                 <mat-label>Karigar Name</mat-label>
                 <input matInput formControlName="karigarName" placeholder="Enter karigar name">
-              </mat-form-field>
+              </mat-form-field> -->
             </div>
 
             <div class="polish-form-row">
@@ -1414,6 +1414,88 @@
     </mat-card>
   </div>
 </ng-container>
+
+<!-- Repair Management Table -->
+<div *ngIf="repairOrders && repairOrders.length > 0; else noRepairOrders">
+  <table class="mat-elevation-z1">
+    <thead>
+      <tr>
+        <th>Work Order #</th>
+        <th>Party Name</th>
+        <th>Product Type</th>
+        <th>Status</th>
+        <th>Assigned Date</th>
+        <th>Issue Weight</th>
+        <th>Jamah Weight</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let order of repairOrders">
+        <td>{{ order.workOrderNumber }}</td>
+        <td>{{ order.partyName }}</td>
+        <td>{{ order.productType }}</td>
+        <td>
+          <span [ngClass]="getStatusBadgeClass(order.status)">
+            {{ order.status | titlecase }}
+          </span>
+        </td>
+        <td>{{ formatDate(order.assignedDate) }}</td>
+        <td>{{ order.issueWeight }}</td>
+        <td>{{ order.jamahWeight }}</td>
+        <td>
+          <button mat-button color="primary" (click)="openRepairUpdateModal(order)">Update</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<ng-template #noRepairOrders>
+  <div class="empty-state">
+    <mat-icon>work_off</mat-icon>
+    <p>No orders assigned to Repair</p>
+  </div>
+</ng-template>
+
+<!-- Repair Update Modal -->
+<mat-dialog-container *ngIf="selectedRepairOrder">
+  <h2>Update Repair Stage</h2>
+  <form [formGroup]="repairUpdateForm" (ngSubmit)="submitRepairUpdate()">
+    <mat-form-field>
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="status" required>
+        <mat-option value="not-started">Not Started</mat-option>
+        <mat-option value="in-progress">In Progress</mat-option>
+        <mat-option value="completed">Completed</mat-option>
+        <mat-option value="on-hold">On Hold</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Issue Weight (g)</mat-label>
+      <input matInput type="number" formControlName="issueWeight" required>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Jamah Weight (g)</mat-label>
+      <input matInput type="number" formControlName="jamahWeight">
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Notes</mat-label>
+      <textarea matInput formControlName="notes"></textarea>
+    </mat-form-field>
+
+    <mat-checkbox formControlName="approved">Approved</mat-checkbox>
+
+    <div class="modal-actions">
+      <button mat-button type="button" (click)="closeRepairUpdateModal()">Cancel</button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="repairUpdateForm.invalid || updatingRepair">
+        Update
+      </button>
+    </div>
+  </form>
+</mat-dialog-container>
 
 <!-- Dispatch Modal -->
   <ng-container *ngIf="selectedOrder">

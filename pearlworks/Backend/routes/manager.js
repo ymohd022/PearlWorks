@@ -34,7 +34,6 @@ router.get("/work-orders", authenticateToken, async (req, res) => {
         wo.po_number,
         wo.po_date,
         wo.item_details,
-        wo.model_number,
         wo.description_of_work,
         wo.status,
         wo.created_at,
@@ -85,7 +84,6 @@ router.get("/work-orders", authenticateToken, async (req, res) => {
       poNumber: order.po_number,
       poDate: order.po_date,
       itemDetails: order.item_details,
-      modelNumber: order.model_number,
       descriptionOfWork: order.description_of_work,
       status: order.status,
       createdDate: order.created_at,
@@ -217,6 +215,9 @@ router.put(
     const connection = await db.getConnection();
 
     try {
+      // DEBUG: Log the incoming request body
+      console.log('--- MANAGER UPDATE-STAGE REQUEST BODY ---');
+      console.log(JSON.stringify(req.body, null, 2));
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -339,6 +340,53 @@ router.put(
         );
     }
 }
+
+      // --- ADD THIS BLOCK: Store receivedStones and returnedStones for setting stage ---
+      if (stage === "setting") {
+        console.log('--- MANAGER: Handling receivedStones and returnedStones for setting stage ---');
+        // Handle received stones
+        if (req.body.receivedStones && Array.isArray(req.body.receivedStones)) {
+          console.log('Received Stones:', req.body.receivedStones);
+          // Delete previous setting stage stones
+          await connection.execute(
+            "DELETE FROM stones WHERE work_order_id = ? AND stage_added = 'setting'",
+            [workOrderId]
+          );
+          // Insert new received stones
+          for (const stone of req.body.receivedStones) {
+            if (stone.type && stone.pieces >= 0) {
+              console.log('Inserting received stone:', stone);
+              await connection.execute(
+                `INSERT INTO stones (work_order_id, type, pieces, weight_grams, weight_carats, is_received, stage_added)
+                 VALUES (?, ?, ?, ?, ?, 1, 'setting')`,
+                [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats]
+              );
+            }
+          }
+        }
+
+        // Handle returned stones
+        if (req.body.returnedStones && Array.isArray(req.body.returnedStones)) {
+          console.log('Returned Stones:', req.body.returnedStones);
+          // Delete previous returned stones for this stage
+          await connection.execute(
+            "DELETE FROM returned_stones WHERE work_order_id = ? AND stage_name = 'setting'",
+            [workOrderId]
+          );
+          // Insert new returned stones
+          for (const stone of req.body.returnedStones) {
+            if (stone.type && stone.pieces >= 0) {
+              console.log('Inserting returned stone:', stone);
+              await connection.execute(
+                `INSERT INTO returned_stones (work_order_id, stage_name, type, pieces, weight_grams, weight_carats, returned_by)
+                 VALUES (?, 'setting', ?, ?, ?, ?, ?)` ,
+                [workOrderId, stone.type, stone.pieces, stone.weightGrams, stone.weightCarats, req.user?.name || "Manager"]
+              );
+            }
+          }
+        }
+      }
+      // --- END BLOCK ---
 
       // Update overall work order status if needed - FIXED: update existing record
       if (status === "completed") {

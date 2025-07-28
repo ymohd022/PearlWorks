@@ -74,7 +74,6 @@ router.get("/", authenticateToken, async (req, res) => {
       poNumber: order.po_number,
       poDate: order.po_date,
       itemDetails: order.item_details,
-      modelNumber: order.model_number,
       descriptionOfWork: order.description_of_work,
       status: order.status,
       createdDate: order.created_at,
@@ -385,7 +384,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
       poNumber,
       poDate,
       itemDetails,
-      modelNumber,
       descriptionOfWork,
       expectedCompletionDate,
       approxWeight,
@@ -424,26 +422,25 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
       }
     }
 
-    const [result] = await connection.execute(
+      const [result] = await connection.execute(
       `INSERT INTO work_orders (
-      work_order_number, party_name, po_number, po_date, item_details, 
-      model_number, description_of_work, status, expected_completion_date, 
-      images, created_by, created_at, approx_weight
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
+        work_order_number, party_name, po_number, po_date, item_details, 
+        description_of_work, status, expected_completion_date, 
+        images, created_by, created_at, approx_weight
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,  // REMOVED EXTRA PLACEHOLDER
       [
         workOrderNumber,
         partyName,
         poNumber || null,
         poDate || null,
         itemDetails,
-        modelNumber || null,
         descriptionOfWork || null,
         "pending",
         expectedCompletionDate || null,
         imagePaths.length > 0 ? JSON.stringify(imagePaths) : null,
         req.user?.id || 1,
-        req.body.approxWeight || 0.0,
-      ],
+        req.body.approxWeight || 0.0,  // NOW() handles created_at automatically
+      ]
     )
 
     const workOrderId = result.insertId
@@ -493,7 +490,6 @@ router.post("/", authenticateToken, upload.array("images", 5), async (req, res) 
         poNumber,
         poDate,
         itemDetails,
-        modelNumber,
         descriptionOfWork,
         status: "pending",
         expectedCompletionDate,
@@ -627,16 +623,16 @@ router.get("/:id", authenticateToken, async (req, res) => {
 router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { partyName, poNumber, poDate, itemDetails, modelNumber, descriptionOfWork, status, expectedCompletionDate } =
+    const { partyName, poNumber, poDate, itemDetails, descriptionOfWork, status, expectedCompletionDate } =
       req.body
 
     const [result] = await db.execute(
       `UPDATE work_orders SET 
         party_name = ?, po_number = ?, po_date = ?, item_details = ?, 
-        model_number = ?, description_of_work = ?, status = ?, 
+        description_of_work = ?, status = ?, 
         expected_completion_date = ?, updated_at = NOW()
        WHERE id = ?`,
-      [partyName, poNumber, poDate, itemDetails, modelNumber, descriptionOfWork, status, expectedCompletionDate, id],
+      [partyName, poNumber, poDate, itemDetails, descriptionOfWork, status, expectedCompletionDate, id],
     )
 
     if (result.affectedRows === 0) {
@@ -655,7 +651,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
         poNumber,
         poDate,
         itemDetails,
-        modelNumber,
         descriptionOfWork,
         status,
         expectedCompletionDate,

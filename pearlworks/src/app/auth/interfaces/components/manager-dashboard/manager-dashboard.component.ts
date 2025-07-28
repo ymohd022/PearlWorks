@@ -24,6 +24,12 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   selectedTabIndex = 0
   expandedState: { [orderId: string]: boolean } = {}
 
+   repairOrders: any[] = [];
+  repairStatistics: any = null;
+  selectedRepairOrder: any = null;
+  repairUpdateForm!: FormGroup;
+  updatingRepair = false;
+
   // Forms
   polishOrders: any[] = []
   polishStatistics: any = null
@@ -115,6 +121,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     private apiservice: ApiService,
   ) {
     this.initializeForms()
+    this.initializeRepairUpdateForm();
   }
 
   ngOnInit(): void {
@@ -126,6 +133,8 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.loadPolishOrders() // Add this line
     this.loadPolishStatistics() // Add this line
     this.initializePolishUpdateForm()
+     this.loadRepairOrders();
+    this.loadRepairStatistics();
     this.loadStatistics()
   }
 
@@ -336,6 +345,90 @@ getDaysTaken(order: any, stage: string): number | string {
     this.polishUpdateForm.reset()
     this.updateImages = []
     this.updateImagePreviewUrls = []
+  }
+
+
+  initializeRepairUpdateForm(): void {
+    this.repairUpdateForm = this.fb.group({
+      status: ["", Validators.required],
+      issueWeight: [null, [Validators.required, Validators.min(0.001)]], // always editable
+      jamahWeight: [null, [Validators.min(0)]],
+      notes: [""],
+      approved: [false],
+      assignmentDate: [{ value: "", disabled: true }],
+      jamahDate: [""],
+      // updateImages: [[]], // optional, if you want image upload
+    });
+  }
+
+  loadRepairOrders(): void {
+    this.loading = true;
+    this.apiservice.getManagerStageOrders("repair").subscribe({
+      next: (response) => {
+        this.repairOrders = response.data || [];
+        this.loading = false;
+      },
+      error: (error) => {
+        this.errorMessage = "Failed to load repair orders";
+        this.loading = false;
+      }
+    });
+  }
+
+  loadRepairStatistics(): void {
+    this.apiservice.getRepairStatistics().subscribe({
+      next: (response) => {
+        this.repairStatistics = response.data || null;
+      },
+      error: (error) => {
+        this.errorMessage = "Failed to load repair statistics";
+      }
+    });
+  }
+
+  openRepairUpdateModal(order: any): void {
+    this.selectedRepairOrder = order;
+    this.repairUpdateForm.patchValue({
+      status: order.status || "not-started",
+      issueWeight: order.issueWeight || null,
+      jamahWeight: order.jamahWeight || null,
+      notes: order.notes || "",
+      approved: order.approved || false,
+      assignmentDate: order.assignedDate ? this.formatDateForInput(order.assignedDate) : "",
+      jamahDate: order.jamahDate || "",
+    });
+  }
+
+  closeRepairUpdateModal(): void {
+    this.selectedRepairOrder = null;
+    this.repairUpdateForm.reset();
+  }
+
+  submitRepairUpdate(): void {
+    if (!this.selectedRepairOrder || this.repairUpdateForm.invalid) return;
+    this.updatingRepair = true;
+    const formValue = this.repairUpdateForm.value;
+    const updateRequest: any = {
+      status: formValue.status,
+      issueWeight: formValue.issueWeight,
+      jamahWeight: formValue.jamahWeight,
+      notes: formValue.notes,
+      approved: formValue.approved,
+      jamahDate: formValue.jamahDate,
+      // updateImages: this.updateImages, // if you want image upload
+    };
+    this.apiservice.updateManagerStageStatus(this.selectedRepairOrder.id, updateRequest).subscribe({
+      next: (response) => {
+        this.successMessage = response.message || "Repair stage updated successfully";
+        this.closeRepairUpdateModal();
+        this.loadRepairOrders();
+        this.updatingRepair = false;
+      },
+      error: (error) => {
+        this.errorMessage = error?.error?.message || "Failed to update repair stage";
+        this.updatingRepair = false;
+      }
+    });
   }
 
   loadStatistics(): void {
