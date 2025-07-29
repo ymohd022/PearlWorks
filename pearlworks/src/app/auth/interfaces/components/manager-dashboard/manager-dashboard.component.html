@@ -379,7 +379,7 @@
     <!-- Stage Tabs -->
     <mat-tab *ngFor="let stage of stageTypes" [label]="stage | titlecase">
       <ng-template matTabContent>
-        <ng-container *ngIf="stage !== 'dispatch' && stage !== 'polish' && stage !== 'repair'; else polishOrDispatchTab">
+        <ng-container *ngIf="stage !== 'dispatch' && stage !== 'polish' && stage !== 'repair'; else polishRepairOrDispatchTab">
           <div class="stage-content">
             <mat-toolbar class="stage-toolbar">
               <mat-icon>{{ stageIcons[stage] }}</mat-icon>
@@ -450,8 +450,8 @@
           </div>
         </ng-container>
 
-        <!-- Polish and Dispatch Tab Template -->
-        <ng-template #polishOrDispatchTab>
+        <!-- Polish, Repair and Dispatch Tab Template -->
+        <ng-template #polishRepairOrDispatchTab>
           <!-- Polish Tab Content -->
           <ng-container *ngIf="stage === 'polish'">
             <div class="stage-content">
@@ -584,6 +584,138 @@
             </div>
           </ng-container>
 
+          <!-- Repair Tab Content -->
+          <ng-container *ngIf="stage === 'repair'">
+            <div class="stage-content">
+              <mat-toolbar class="stage-toolbar">
+                <mat-icon>build_circle</mat-icon>
+                <span>Repair Management</span>
+                <span class="toolbar-spacer"></span>
+                <mat-chip-set>
+                  <mat-chip>{{ (stageWorkOrders['repair'] || []).length }} Orders</mat-chip>
+                </mat-chip-set>
+              </mat-toolbar>
+
+              <!-- Repair Statistics Cards -->
+              <div class="statistics-grid" *ngIf="repairStatistics">
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon pending">pending</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ repairStatistics.pendingOrders || 0 }}</div>
+                        <div class="stat-label">Pending Orders</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon in-progress">hourglass_empty</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ repairStatistics.inProgressOrders || 0 }}</div>
+                        <div class="stat-label">In Progress</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon completed">check_circle</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ repairStatistics.completedOrders || 0 }}</div>
+                        <div class="stat-label">Completed</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+
+                <mat-card class="stat-card">
+                  <mat-card-content>
+                    <div class="stat-content">
+                      <mat-icon class="stat-icon approved">verified</mat-icon>
+                      <div class="stat-details">
+                        <div class="stat-number">{{ repairStatistics.approvedOrders || 0 }}</div>
+                        <div class="stat-label">Approved</div>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+
+              <!-- Repair Orders Grid -->
+              <div class="stage-orders-grid">
+                <mat-card *ngFor="let order of stageWorkOrders['repair']" class="stage-order-card repair-order-card">
+                  <mat-card-header>
+                    <mat-card-title>{{ order.workOrderNumber }}</mat-card-title>
+                    <mat-card-subtitle>{{ order.partyName }}</mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    <div class="order-details">
+                      <div class="detail-row">
+                        <span class="label">Product:</span>
+                        <span>{{ order.productType || order.itemDetails }}</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">Approximate Weight (g):</span>
+                        <span>{{ order.approxWeight || 0 }}g</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.issueWeight">
+                        <span class="label">Issue Weight:</span>
+                        <span>{{ formatWeight(order.issueWeight) }}g</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.jamahWeight">
+                        <span class="label">Jamah Weight:</span>
+                        <span>{{ formatWeight(order.jamahWeight) }}g</span>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">Status:</span>
+                        <mat-chip [class]="getStatusBadgeClass(order.status)">
+                          {{ order.status | titlecase }}
+                        </mat-chip>
+                      </div>
+                      <div class="detail-row" *ngIf="order.approved">
+                        <span class="label">Approved:</span>
+                        <mat-icon class="approved-icon">verified</mat-icon>
+                      </div>
+                      <div class="detail-row">
+                        <span class="label">Days Taken:</span>
+                        <span>{{ getDaysTaken(order, 'repair') }}</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.weightDifference">
+                        <span class="label">Weight Difference:</span>
+                        <span>{{ formatWeight(order.weightDifference) }}g</span>
+                      </div>
+                      <div class="detail-row" *ngIf="order.notes">
+                        <span class="label">Notes:</span>
+                        <span>{{ order.notes }}</span>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                  <mat-card-actions>
+                    <button mat-button color="accent" (click)="openDetailModal(order)">
+                      <mat-icon>visibility</mat-icon>
+                      View Detail
+                    </button>
+                    <button mat-raised-button color="primary" (click)="openRepairUpdateModal(order)">
+                      <mat-icon>edit</mat-icon>
+                      Update Repair
+                    </button>
+                  </mat-card-actions>
+                </mat-card>
+              </div>
+              
+              <div *ngIf="!stageWorkOrders['repair'] || stageWorkOrders['repair'].length === 0" class="empty-stage">
+                <mat-icon>build_circle</mat-icon>
+                <p>No orders assigned to Repair</p>
+              </div>
+            </div>
+          </ng-container>
+
           <!-- Dispatch Tab Content -->
           <ng-container *ngIf="stage === 'dispatch'">
             <div class="dispatch-container">
@@ -696,7 +828,7 @@
                       <ng-container matColumnDef="netWeight">
                         <th mat-header-cell *matHeaderCellDef>Net Weight</th>
                         <td mat-cell *matCellDef="let order">
-                          <div class="weight-value">{{ formatWeight(order.netWeight) }}</div>
+                          <div class="weight-value">{{ calculateNetWeight(order) }}</div>
                         </td>
                       </ng-container>
                       <!-- Status Column -->
@@ -1288,11 +1420,6 @@
                   <mat-option value="on-hold">On Hold</mat-option>
                 </mat-select>
               </mat-form-field>
-
-              <!-- <mat-form-field appearance="outline">
-                <mat-label>Karigar Name</mat-label>
-                <input matInput formControlName="karigarName" placeholder="Enter karigar name">
-              </mat-form-field> -->
             </div>
 
             <div class="polish-form-row">
@@ -1415,167 +1542,296 @@
   </div>
 </ng-container>
 
-<!-- Repair Management Table -->
-<div *ngIf="repairOrders && repairOrders.length > 0; else noRepairOrders">
-  <table class="mat-elevation-z1">
-    <thead>
-      <tr>
-        <th>Work Order #</th>
-        <th>Party Name</th>
-        <th>Product Type</th>
-        <th>Status</th>
-        <th>Assigned Date</th>
-        <th>Issue Weight</th>
-        <th>Jamah Weight</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let order of repairOrders">
-        <td>{{ order.workOrderNumber }}</td>
-        <td>{{ order.partyName }}</td>
-        <td>{{ order.productType }}</td>
-        <td>
-          <span [ngClass]="getStatusBadgeClass(order.status)">
-            {{ order.status | titlecase }}
-          </span>
-        </td>
-        <td>{{ formatDate(order.assignedDate) }}</td>
-        <td>{{ order.issueWeight }}</td>
-        <td>{{ order.jamahWeight }}</td>
-        <td>
-          <button mat-button color="primary" (click)="openRepairUpdateModal(order)">Update</button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-<ng-template #noRepairOrders>
-  <div class="empty-state">
-    <mat-icon>work_off</mat-icon>
-    <p>No orders assigned to Repair</p>
-  </div>
-</ng-template>
-
 <!-- Repair Update Modal -->
-<mat-dialog-container *ngIf="selectedRepairOrder">
-  <h2>Update Repair Stage</h2>
-  <form [formGroup]="repairUpdateForm" (ngSubmit)="submitRepairUpdate()">
-    <mat-form-field>
-      <mat-label>Status</mat-label>
-      <mat-select formControlName="status" required>
-        <mat-option value="not-started">Not Started</mat-option>
-        <mat-option value="in-progress">In Progress</mat-option>
-        <mat-option value="completed">Completed</mat-option>
-        <mat-option value="on-hold">On Hold</mat-option>
-      </mat-select>
-    </mat-form-field>
+<ng-container *ngIf="selectedRepairOrder">
+  <div class="modal-overlay" (click)="closeRepairUpdateModal()">
+    <mat-card class="repair-update-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>build_circle</mat-icon>
+          Update Repair - {{ selectedRepairOrder.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <form [formGroup]="repairUpdateForm">
+          
+          <!-- Basic Information Section -->
+          <div class="repair-section">
+            <h4>
+              <mat-icon>info</mat-icon>
+              Repair Stage Information
+            </h4>
+            
+            <div class="repair-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Status *</mat-label>
+                <mat-select formControlName="status">
+                  <mat-option value="not-started">Not Started</mat-option>
+                  <mat-option value="in-progress">In Progress</mat-option>
+                  <mat-option value="completed">Completed</mat-option>
+                  <mat-option value="on-hold">On Hold</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
 
-    <mat-form-field>
-      <mat-label>Issue Weight (g)</mat-label>
-      <input matInput type="number" formControlName="issueWeight" required>
-    </mat-form-field>
+            <div class="repair-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Assignment Date</mat-label>
+                <input matInput formControlName="assignmentDate" readonly>
+                <mat-hint>Date when work was assigned (read-only)</mat-hint>
+              </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Jamah Weight (g)</mat-label>
-      <input matInput type="number" formControlName="jamahWeight">
-    </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Issue Weight (g) *</mat-label>
+                <input matInput type="number" formControlName="issueWeight" step="0.001" 
+                       placeholder="Enter issue weight" required>
+                <mat-hint>Enter the issue weight for repair</mat-hint>
+              </mat-form-field>
+            </div>
 
-    <mat-form-field>
-      <mat-label>Notes</mat-label>
-      <textarea matInput formControlName="notes"></textarea>
-    </mat-form-field>
+            <div class="repair-form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Date</mat-label>
+                <input matInput [matDatepicker]="repairJamahDatePicker" formControlName="jamahDate">
+                <mat-datepicker-toggle matSuffix [for]="repairJamahDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #repairJamahDatePicker></mat-datepicker>
+              </mat-form-field>
 
-    <mat-checkbox formControlName="approved">Approved</mat-checkbox>
+              <mat-form-field appearance="outline">
+                <mat-label>Jamah Weight (g)</mat-label>
+                <input matInput type="number" formControlName="jamahWeight" step="0.001" 
+                       placeholder="25.000">
+              </mat-form-field>
+            </div>
 
-    <div class="modal-actions">
-      <button mat-button type="button" (click)="closeRepairUpdateModal()">Cancel</button>
-      <button mat-raised-button color="primary" type="submit" [disabled]="repairUpdateForm.invalid || updatingRepair">
-        Update
-      </button>
-    </div>
-  </form>
-</mat-dialog-container>
-
-<!-- Dispatch Modal -->
-  <ng-container *ngIf="selectedOrder">
-    <div class="modal-overlay" (click)="closeDispatchModal()">
-      <mat-card class="dispatch-modal" (click)="$event.stopPropagation()">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>local_shipping</mat-icon>
-            Dispatch Order - {{ selectedOrder.workOrderNumber }}
-          </mat-card-title>
-        </mat-card-header>
-        
-        <mat-card-content>
-          <!-- Order Details -->
-          <div class="order-details-section">
-            <h4>Order Details</h4>
-            <div class="details-grid">
-              <div class="detail-item">
-                <span class="detail-label">Party Name:</span>
-                <span class="detail-value">{{ selectedOrder.partyName }}</span>
+            <div class="repair-form-row">
+              <div class="sorting-checkbox-section">
+                <mat-checkbox formControlName="sorting" color="primary">
+                  <span class="sorting-text">
+                    <mat-icon>sort</mat-icon>
+                    Sorting Required
+                  </span>
+                </mat-checkbox>
               </div>
-              <div class="detail-item">
-                <span class="detail-label">Gross Weight:</span>
-                <span class="detail-value">{{ formatWeight(selectedOrder.grossWeight) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Net Weight:</span>
-                <span class="detail-value">{{ formatWeight(selectedOrder.netWeight) }}</span>
-              </div>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Weight Difference (Auto-calculated)</mat-label>
+                <input matInput type="number" formControlName="weightDifference" readonly
+                       class="difference-field">
+                <mat-hint>Automatically calculated: Jamah Weight - Issue Weight</mat-hint>
+              </mat-form-field>
             </div>
           </div>
 
-          <!-- Dispatch Form -->
-          <form [formGroup]="dispatchForm" (ngSubmit)="onSubmitDispatch()">
-            <div class="form-section">
-              <h4>Dispatch Information</h4>
-              
-              <div class="form-row">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Order Completed Date *</mat-label>
-                  <input matInput type="date" formControlName="orderCompletedDate">
-                  <mat-error *ngIf="dispatchForm.get('orderCompletedDate')?.hasError('required')">
-                    Order completed date is required
-                  </mat-error>
-                </mat-form-field>
-              </div>
-
-              <div class="form-row">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Dispatched By *</mat-label>
-                  <input matInput formControlName="dispatchedBy" placeholder="Enter dispatcher name">
-                  <mat-error *ngIf="dispatchForm.get('dispatchedBy')?.hasError('required')">
-                    Dispatcher name is required
-                  </mat-error>
-                  <mat-error *ngIf="dispatchForm.get('dispatchedBy')?.hasError('minlength')">
-                    Name must be at least 2 characters
-                  </mat-error>
-                </mat-form-field>
+          <!-- Image Upload Section -->
+          <div class="repair-section">
+            <div class="section-header">
+              <h4>
+                <mat-icon>camera_alt</mat-icon>
+                Attach Images
+              </h4>
+              <div class="update-image-upload-buttons">
+                <input type="file" #repairUpdateFileInput multiple accept="image/*" 
+                       (change)="onUpdateFileSelected($event)" style="display: none;">
+                <button mat-raised-button color="accent" type="button" 
+                        (click)="repairUpdateFileInput.click()">
+                  <mat-icon>attach_file</mat-icon>
+                  Attach Images
+                </button>
               </div>
             </div>
-          </form>
-        </mat-card-content>
-        
-        <mat-card-actions class="modal-actions">
-          <button mat-button (click)="closeDispatchModal()" class="cancel-btn">
-            <mat-icon>cancel</mat-icon>
-            Cancel
-          </button>
-          <button 
-            mat-raised-button 
-            color="primary" 
-            (click)="onSubmitDispatch()" 
-            [disabled]="submitting || dispatchForm.invalid" 
-            class="dispatch-btn">
-            <mat-spinner *ngIf="submitting" diameter="20"></mat-spinner>
-            <mat-icon *ngIf="!submitting">local_shipping</mat-icon>
-            {{ submitting ? 'Dispatching...' : 'Dispatch Order' }}
-          </button>
-        </mat-card-actions>
-      </mat-card>
-    </div>
-  </ng-container>
-<!-- End of manager-dashboard -->
+
+            <!-- Update Image Previews -->
+            <div class="update-image-previews" *ngIf="updateImagePreviewUrls.length > 0">
+              <div *ngFor="let url of updateImagePreviewUrls; let i = index" class="update-image-preview">
+                <img [src]="url" alt="Repair Update Preview" class="update-preview-image">
+                <button mat-icon-button color="warn" type="button" 
+                        (click)="removeUpdateImage(i)" class="remove-update-image-btn">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="image-upload-hint" *ngIf="updateImagePreviewUrls.length === 0">
+              <mat-icon>cloud_upload</mat-icon>
+              <p>Attach images showing completed repair work (optional)</p>
+            </div>
+          </div>
+
+          <!-- Notes and Approval Section -->
+          <div class="repair-section">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Notes</mat-label>
+              <textarea matInput formControlName="notes" rows="3" 
+                        placeholder="Add any additional notes about the repair work..."></textarea>
+            </mat-form-field>
+
+            <div class="approval-section">
+              <mat-checkbox formControlName="approved" color="primary">
+                <span class="approval-text">
+                  <mat-icon>verified</mat-icon>
+                  Approved
+                </span>
+              </mat-checkbox>
+            </div>
+          </div>
+
+        </form>
+      </mat-card-content>
+      
+      <mat-card-actions class="modal-actions">
+        <button mat-button (click)="closeRepairUpdateModal()" class="cancel-btn">
+          <mat-icon>cancel</mat-icon>
+          Cancel
+        </button>
+        <button mat-raised-button color="primary" (click)="submitRepairUpdate()" 
+                [disabled]="updatingRepair || repairUpdateForm.invalid" class="update-btn">
+          <mat-spinner *ngIf="updatingRepair" diameter="20"></mat-spinner>
+          <mat-icon *ngIf="!updatingRepair">save</mat-icon>
+          {{ updatingRepair ? 'Updating...' : 'Update Repair Stage' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-container>
+
+<!-- Dispatch Modal -->
+<ng-container *ngIf="selectedOrder">
+  <div class="modal-overlay" (click)="closeDispatchModal()">
+    <mat-card class="dispatch-modal" (click)="$event.stopPropagation()">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>local_shipping</mat-icon>
+          Dispatch Order - {{ selectedOrder.workOrderNumber }}
+        </mat-card-title>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <!-- Order Details -->
+        <div class="order-details-section">
+          <h4>Order Details</h4>
+          <div class="details-grid">
+            <div class="detail-item">
+              <span class="detail-label">Party Name:</span>
+              <span class="detail-value">{{ selectedOrder.partyName }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Gross Weight:</span>
+              <span class="detail-value">{{ formatWeight(selectedOrder.grossWeight) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Expected Wastage:</span>
+              <span class="detail-value">{{ dispatchForm.get('expectedWastage')?.value || 0 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Net Weight:</span>
+              <span class="detail-value">
+                {{ calculateNetWeight(selectedOrder) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dispatch Form -->
+        <form [formGroup]="dispatchForm" (ngSubmit)="onSubmitDispatch()">
+          <div class="form-section">
+            <h4>Dispatch Information</h4>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Order Completed Date *</mat-label>
+                <input matInput type="date" formControlName="orderCompletedDate">
+                <mat-error *ngIf="dispatchForm.get('orderCompletedDate')?.hasError('required')">
+                  Order completed date is required
+                </mat-error>
+              </mat-form-field>
+            </div>
+
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Dispatched By *</mat-label>
+                <input matInput formControlName="dispatchedBy" placeholder="Enter dispatcher name">
+                <mat-error *ngIf="dispatchForm.get('dispatchedBy')?.hasError('required')">
+                  Dispatcher name is required
+                </mat-error>
+                <mat-error *ngIf="dispatchForm.get('dispatchedBy')?.hasError('minlength')">
+                  Name must be at least 2 characters
+                </mat-error>
+              </mat-form-field>
+            </div>
+
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Gross Weight (g) *</mat-label>
+                <input matInput type="number" formControlName="grossWeight" placeholder="Enter gross weight" required>
+                <mat-error *ngIf="dispatchForm.get('grossWeight')?.hasError('required')">
+                  Gross weight is required
+                </mat-error>
+                <mat-error *ngIf="dispatchForm.get('grossWeight')?.hasError('min')">
+                  Gross weight must be greater than 0
+                </mat-error>
+              </mat-form-field>
+            </div>
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Expected Wastage (g)</mat-label>
+                <input matInput type="number" formControlName="expectedWastage" placeholder="Enter expected wastage">
+                <mat-hint>Optional: Enter expected wastage in grams</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <!-- Image Upload Section -->
+            <div class="form-section">
+              <h4>
+                <mat-icon>photo_camera</mat-icon>
+                Attach Images
+              </h4>
+              <div class="image-upload-buttons">
+                <input type="file" #dispatchFileInput multiple accept="image/*"
+                       (change)="onDispatchFileSelected($event)" style="display: none;">
+                <button mat-raised-button color="primary" type="button"
+                        (click)="dispatchFileInput.click()">
+                  <mat-icon>attach_file</mat-icon>
+                  Attach Images
+                </button>
+              </div>
+            </div>
+
+            
+       <div class="image-previews" *ngIf="dispatchImagePreviewUrls.length > 0">
+  <div *ngFor="let url of dispatchImagePreviewUrls; let i = index" class="image-preview">
+    <img [src]="url" alt="Dispatch Preview" class="dispatch-preview-image">
+    <button 
+      mat-icon-button 
+      color="warn" 
+      type="button"
+      (click)="removeDispatchImage(i)" 
+      class="remove-dispatch-image-btn">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+</div>
+          </div>
+        </form>
+      </mat-card-content>
+      
+      <mat-card-actions class="modal-actions">
+        <button mat-button (click)="closeDispatchModal()" class="cancel-btn">
+          <mat-icon>cancel</mat-icon>
+          Cancel
+        </button>
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="onSubmitDispatch()"
+          [disabled]="submitting || dispatchForm.invalid"
+          class="dispatch-btn">
+          <mat-spinner *ngIf="submitting" diameter="20"></mat-spinner>
+          <mat-icon *ngIf="!submitting">local_shipping</mat-icon>
+          Dispatch Order
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-container>

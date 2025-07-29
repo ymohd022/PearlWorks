@@ -10,8 +10,8 @@ import  { AutocompleteOption } from "../../services/autocomplete.service"
 import  { ApiService } from "../../services/api.service"
 import  { DispatchOrder, DispatchStatistics, DispatchUpdateRequest } from "../../dispatch.interface"
 import  { DispatchService } from "../../services/dispatch.service"
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 
 @Component({
   selector: "app-manager-dashboard",
@@ -23,12 +23,13 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   // Tab management
   selectedTabIndex = 0
   expandedState: { [orderId: string]: boolean } = {}
-
-   repairOrders: any[] = [];
-  repairStatistics: any = null;
-  selectedRepairOrder: any = null;
-  repairUpdateForm!: FormGroup;
-  updatingRepair = false;
+  dispatchImages: File[] = []
+  dispatchImagePreviewUrls: string[] = []
+  repairOrders: any[] = []
+  repairStatistics: any = null
+  selectedRepairOrder: any = null
+  repairUpdateForm!: FormGroup
+  updatingRepair = false
 
   // Forms
   polishOrders: any[] = []
@@ -49,7 +50,6 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     "orderCompletedDate",
     "grossWeight",
     "netWeight",
-    "daysTaken",
     "status",
     "actions",
   ]
@@ -121,7 +121,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     private apiservice: ApiService,
   ) {
     this.initializeForms()
-    this.initializeRepairUpdateForm();
+    this.initializeRepairUpdateForm()
   }
 
   ngOnInit(): void {
@@ -133,8 +133,8 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.loadPolishOrders() // Add this line
     this.loadPolishStatistics() // Add this line
     this.initializePolishUpdateForm()
-     this.loadRepairOrders();
-    this.loadRepairStatistics();
+    this.loadRepairOrders()
+    this.loadRepairStatistics()
     this.loadStatistics()
   }
 
@@ -182,13 +182,16 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
     this.dispatchForm = this.fb.group({
       orderCompletedDate: ["", Validators.required],
       dispatchedBy: ["", [Validators.required, Validators.minLength(2)]],
+      grossWeight: [0, [Validators.required, Validators.min(0.001)]], // Add grossWeight
+      expectedWastage: [0, [Validators.min(0)]], // NEW FIELD
+      images: [[]], // Add images
     })
 
     this.addStoneRow()
     this.generateWorkOrderNumber()
   }
 
-  loadOrders(): void {
+loadOrders(): void {
     this.loading = true
     // Use dispatch service to get orders assigned to dispatch stage
     this.dispatchService
@@ -197,6 +200,21 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.orders = response.data || []
+          // For each order, fetch its stones and assign to the order object
+          this.orders.forEach((order) => {
+            this.workOrderService.getWorkOrderDetails(order.id).subscribe({
+              next: (detailsResponse) => {
+                if (detailsResponse.success && detailsResponse.data) {
+                  order.stones = detailsResponse.data.stones || []
+                } else {
+                  order.stones = []
+                }
+              },
+              error: () => {
+                order.stones = []
+              }
+            })
+          })
           this.loading = false
         },
         error: (error) => {
@@ -208,26 +226,24 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
       })
   }
 
-getDaysTaken(order: any, stage: string): number | string {
-  // For stage orders (framing, setting, polish, repair)
-  if (order.assignedDate) {
-    const start = new Date(order.assignedDate);
-    const end = order.status === 'completed' && order.jamahDate 
-      ? new Date(order.jamahDate) 
-      : new Date();
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
+  getDaysTaken(order: any, stage: string): number | string {
+    // For stage orders (framing, setting, polish, repair)
+    if (order.assignedDate) {
+      const start = new Date(order.assignedDate)
+      const end = order.status === "completed" && order.jamahDate ? new Date(order.jamahDate) : new Date()
+      const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+      return diff
+    }
+    // For dispatch orders
+    else if (order.orderCompletedDate && (order.assignedDate || order.createdDate)) {
+      const start = new Date(order.assignedDate || order.createdDate)
+      const end = new Date(order.orderCompletedDate)
+      const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+      return diff
+    }
+    // If neither, just return 'N/A' but don't break the UI
+    return "N/A"
   }
-  // For dispatch orders
-  else if (order.orderCompletedDate && (order.assignedDate || order.createdDate)) {
-    const start = new Date(order.assignedDate || order.createdDate);
-    const end = new Date(order.orderCompletedDate);
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
-  }
-  // If neither, just return 'N/A' but don't break the UI
-  return 'N/A';
-}
 
   initializePolishUpdateForm(): void {
     this.polishUpdateForm = this.fb.group({
@@ -347,88 +363,122 @@ getDaysTaken(order: any, stage: string): number | string {
     this.updateImagePreviewUrls = []
   }
 
-
   initializeRepairUpdateForm(): void {
     this.repairUpdateForm = this.fb.group({
       status: ["", Validators.required],
-      issueWeight: [null, [Validators.required, Validators.min(0.001)]], // always editable
+      issueWeight: [null], // always editable
       jamahWeight: [null, [Validators.min(0)]],
+      sorting: [false],
       notes: [""],
       approved: [false],
       assignmentDate: [{ value: "", disabled: true }],
       jamahDate: [""],
-      // updateImages: [[]], // optional, if you want image upload
-    });
+      weightDifference: [{ value: 0, disabled: true }],
+      updateImages: [[]],
+    })
   }
 
   loadRepairOrders(): void {
-    this.loading = true;
+    this.loading = true
     this.apiservice.getManagerStageOrders("repair").subscribe({
       next: (response) => {
-        this.repairOrders = response.data || [];
-        this.loading = false;
+        this.repairOrders = response.data || []
+        this.stageWorkOrders["repair"] = this.repairOrders
+        this.loading = false
       },
       error: (error) => {
-        this.errorMessage = "Failed to load repair orders";
-        this.loading = false;
-      }
-    });
+        this.errorMessage = "Failed to load repair orders"
+        this.loading = false
+      },
+    })
   }
 
   loadRepairStatistics(): void {
     this.apiservice.getRepairStatistics().subscribe({
       next: (response) => {
-        this.repairStatistics = response.data || null;
+        this.repairStatistics = response.data || null
       },
       error: (error) => {
-        this.errorMessage = "Failed to load repair statistics";
-      }
-    });
+        this.errorMessage = "Failed to load repair statistics"
+      },
+    })
   }
 
   openRepairUpdateModal(order: any): void {
-    this.selectedRepairOrder = order;
+    this.selectedRepairOrder = order
     this.repairUpdateForm.patchValue({
       status: order.status || "not-started",
       issueWeight: order.issueWeight || null,
       jamahWeight: order.jamahWeight || null,
+      sorting: order.sorting || false,
       notes: order.notes || "",
       approved: order.approved || false,
       assignmentDate: order.assignedDate ? this.formatDateForInput(order.assignedDate) : "",
       jamahDate: order.jamahDate || "",
-    });
+      weightDifference: order.weightDifference || 0,
+    })
+
+    this.updateImages = []
+    this.updateImagePreviewUrls = []
+
+    // Subscribe to form changes to calculate weight difference
+    this.repairUpdateForm.get("issueWeight")?.valueChanges.subscribe(() => {
+      this.calculateRepairWeightDifference()
+    })
+    this.repairUpdateForm.get("jamahWeight")?.valueChanges.subscribe(() => {
+      this.calculateRepairWeightDifference()
+    })
+  }
+
+  calculateRepairWeightDifference(): void {
+    const issueWeight = this.repairUpdateForm.get("issueWeight")?.value || 0
+    const jamahWeight = this.repairUpdateForm.get("jamahWeight")?.value || 0
+    const difference = jamahWeight - issueWeight
+    this.repairUpdateForm.patchValue({
+      weightDifference: Number.parseFloat(difference.toFixed(3)),
+    })
   }
 
   closeRepairUpdateModal(): void {
-    this.selectedRepairOrder = null;
-    this.repairUpdateForm.reset();
+    this.selectedRepairOrder = null
+    this.repairUpdateForm.reset()
+    this.updateImages = []
+    this.updateImagePreviewUrls = []
   }
 
   submitRepairUpdate(): void {
-    if (!this.selectedRepairOrder || this.repairUpdateForm.invalid) return;
-    this.updatingRepair = true;
-    const formValue = this.repairUpdateForm.value;
+    if (!this.selectedRepairOrder || this.repairUpdateForm.invalid) return
+    this.updatingRepair = true
+    this.clearMessages()
+
+    const formValue = this.repairUpdateForm.value
     const updateRequest: any = {
+      stage: "repair",
       status: formValue.status,
       issueWeight: formValue.issueWeight,
       jamahWeight: formValue.jamahWeight,
+      sorting: formValue.sorting,
       notes: formValue.notes,
       approved: formValue.approved,
       jamahDate: formValue.jamahDate,
-      // updateImages: this.updateImages, // if you want image upload
-    };
+      updateImages: this.updateImages,
+    }
+
     this.apiservice.updateManagerStageStatus(this.selectedRepairOrder.id, updateRequest).subscribe({
       next: (response) => {
-        this.successMessage = response.message || "Repair stage updated successfully";
-        this.closeRepairUpdateModal();
-        this.loadRepairOrders();
-        this.updatingRepair = false;
+        this.successMessage = response.message || "Repair stage updated successfully"
+        this.closeRepairUpdateModal()
+        this.loadRepairOrders()
+        this.loadRepairStatistics()
+        this.updatingRepair = false
+        this.clearMessages()
       },
       error: (error) => {
-        this.errorMessage = error?.error?.message || "Failed to update repair stage";
-        this.updatingRepair = false;
-      }
-    });
+        this.errorMessage = error?.error?.message || "Failed to update repair stage"
+        this.updatingRepair = false
+        this.clearMessages()
+      },
+    })
   }
 
   loadStatistics(): void {
@@ -447,11 +497,15 @@ getDaysTaken(order: any, stage: string): number | string {
 
   openDispatchModal(order: DispatchOrder): void {
     this.selectedOrder = order
+      this.dispatchImages = []  // Reset dispatch images
+  this.dispatchImagePreviewUrls = []
     this.dispatchForm.patchValue({
-      orderCompletedDate: this.formatDateForInput(order.orderCompletedDate),
-      dispatchedBy: "",
-    })
-  }
+    orderCompletedDate: this.formatDateForInput(order.orderCompletedDate),
+    dispatchedBy: "",
+    grossWeight: order.grossWeight || 0,
+    expectedWastage: order.expectedWastage || 0, // PATCH
+  })
+}
 
   closeDispatchModal(): void {
     this.selectedOrder = null
@@ -471,7 +525,10 @@ getDaysTaken(order: any, stage: string): number | string {
       orderCompletedDate: this.dispatchForm.value.orderCompletedDate,
       dispatchedBy: this.dispatchForm.value.dispatchedBy,
       status: "dispatched",
+      grossWeight: this.dispatchForm.value.grossWeight, // Add grossWeight
+      images: this.dispatchImagePreviewUrls, // Use selectedImages for dispatch
     }
+
 
     this.dispatchService
       .updateDispatchStatus(this.selectedOrder.id, updateRequest)
@@ -605,6 +662,9 @@ getDaysTaken(order: any, stage: string): number | string {
       if (stage === "polish") {
         this.loadPolishOrders()
         this.loadPolishStatistics()
+      } else if (stage === "repair") {
+        this.loadRepairOrders()
+        this.loadRepairStatistics()
       }
     }
   }
@@ -1096,36 +1156,36 @@ getDaysTaken(order: any, stage: string): number | string {
 
   // Returns the status of a given stage for a work order
   getStageStatus(order: any, stage: string): string {
-    if (!order.stages) return 'not-started';
-    const found = order.stages.find((s: any) => s.stageName === stage);
-    return found ? found.status : 'not-started';
+    if (!order.stages) return "not-started"
+    const found = order.stages.find((s: any) => s.stageName === stage)
+    return found ? found.status : "not-started"
   }
 
   // Calculates progress as percentage of completed stages out of all 5
   calculateProgressAllStages(order: any): number {
-    if (!order.stages) return 0;
-    const totalStages = this.stageTypes.length;
-    const completedStages = this.stageTypes.filter(stage => this.getStageStatus(order, stage) === 'completed').length;
-    return Math.round((completedStages / totalStages) * 100);
+    if (!order.stages) return 0
+    const totalStages = this.stageTypes.length
+    const completedStages = this.stageTypes.filter((stage) => this.getStageStatus(order, stage) === "completed").length
+    return Math.round((completedStages / totalStages) * 100)
   }
 
   // Returns the number of days taken for a stage (from assignment to now or to completion)
   getAssignmentDays(order: any, stage: string): number | null {
-    if (!order.stages) return null;
-    const stageInfo = order.stages.find((s: any) => s.stageName === stage);
-    if (!stageInfo || !stageInfo.assignedDate) return null;
-    const assigned = new Date(stageInfo.assignedDate);
-    let end: Date;
-    if (stageInfo.status === 'completed' && stageInfo.jamahDate) {
-      end = new Date(stageInfo.jamahDate);
-    } else if (stageInfo.status === 'completed' && stageInfo.completedDate) {
-      end = new Date(stageInfo.completedDate);
+    if (!order.stages) return null
+    const stageInfo = order.stages.find((s: any) => s.stageName === stage)
+    if (!stageInfo || !stageInfo.assignedDate) return null
+    const assigned = new Date(stageInfo.assignedDate)
+    let end: Date
+    if (stageInfo.status === "completed" && stageInfo.jamahDate) {
+      end = new Date(stageInfo.jamahDate)
+    } else if (stageInfo.status === "completed" && stageInfo.completedDate) {
+      end = new Date(stageInfo.completedDate)
     } else {
-      end = new Date();
+      end = new Date()
     }
     // Calculate difference in days
-    const diff = Math.ceil((end.getTime() - assigned.getTime()) / (1000 * 60 * 60 * 24));
-    return diff >= 0 ? diff : 0;
+    const diff = Math.ceil((end.getTime() - assigned.getTime()) / (1000 * 60 * 60 * 24))
+    return diff >= 0 ? diff : 0
   }
 
   // Updated weight conversion methods to use blur events
@@ -1477,16 +1537,61 @@ getDaysTaken(order: any, stage: string): number | string {
     })
   }
 
+    // Calculate Net Weight
+  calculateNetWeight(order: any): string {
+    let totalStonesWeight = 0
+    if (order.stones && order.stones.length > 0) {
+      totalStonesWeight = order.stones.reduce((sum: number, stone: any) => sum + (stone.weightGrams || 0), 0)
+    }
+    const netWeight = order.grossWeight - totalStonesWeight
+    return this.formatWeight(netWeight)
+  }
+
+  onDispatchFileSelected(event: any): void {
+    const files = event.target.files
+    if (files) {
+      this.processDispatchFiles(files)
+    }
+  }
+
+private processDispatchFiles(files: FileList): void {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    if (file.type.startsWith("image/")) {
+      this.dispatchImages.push(file)
+
+      const reader = new FileReader()
+      reader.onload = (e: any) => {
+        this.dispatchImagePreviewUrls.push(e.target.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+}
+
+removeDispatchImage(index: number): void {
+  this.dispatchImages.splice(index, 1)
+  this.dispatchImagePreviewUrls.splice(index, 1)
+}
+
   // Returns a per-stone-type summary for the Setting tab, including original received stones
-  getStoneTypeSummary(): Array<{ type: string, received: number, returned: number, difference: number, receivedPcs: number, returnedPcs: number, differencePcs: number }> {
+  getStoneTypeSummary(): Array<{
+    type: string
+    received: number
+    returned: number
+    difference: number
+    receivedPcs: number
+    returnedPcs: number
+    differencePcs: number
+  }> {
     const received: { [type: string]: number } = {}
     const returned: { [type: string]: number } = {}
     const receivedPcs: { [type: string]: number } = {}
     const returnedPcs: { [type: string]: number } = {}
 
     // Aggregate original received stones by type
-    this.originalReceivedStones.forEach(stone => {
-      const type = stone.type || 'Unknown'
+    this.originalReceivedStones.forEach((stone) => {
+      const type = stone.type || "Unknown"
       const grams = Number(stone.weightGrams) || 0
       const pcs = Number(stone.pieces) || 0
       received[type] = (received[type] || 0) + grams
@@ -1494,19 +1599,19 @@ getDaysTaken(order: any, stage: string): number | string {
     })
 
     // Aggregate received stones added in setting stage by type
-    this.receivedStones.controls.forEach(stone => {
-      const type = stone.get('type')?.value || 'Unknown'
-      const grams = Number(stone.get('weightGrams')?.value) || 0
-      const pcs = Number(stone.get('pieces')?.value) || 0
+    this.receivedStones.controls.forEach((stone) => {
+      const type = stone.get("type")?.value || "Unknown"
+      const grams = Number(stone.get("weightGrams")?.value) || 0
+      const pcs = Number(stone.get("pieces")?.value) || 0
       received[type] = (received[type] || 0) + grams
       receivedPcs[type] = (receivedPcs[type] || 0) + pcs
     })
 
     // Aggregate returned stones by type
-    this.returnedStones.controls.forEach(stone => {
-      const type = stone.get('type')?.value || 'Unknown'
-      const grams = Number(stone.get('weightGrams')?.value) || 0
-      const pcs = Number(stone.get('pieces')?.value) || 0
+    this.returnedStones.controls.forEach((stone) => {
+      const type = stone.get("type")?.value || "Unknown"
+      const grams = Number(stone.get("weightGrams")?.value) || 0
+      const pcs = Number(stone.get("pieces")?.value) || 0
       returned[type] = (returned[type] || 0) + grams
       returnedPcs[type] = (returnedPcs[type] || 0) + pcs
     })
@@ -1515,7 +1620,7 @@ getDaysTaken(order: any, stage: string): number | string {
     const allTypes = Array.from(new Set([...Object.keys(received), ...Object.keys(returned)]))
 
     // Build summary array
-    return allTypes.map(type => ({
+    return allTypes.map((type) => ({
       type,
       received: Number(received[type] || 0),
       returned: Number(returned[type] || 0),
@@ -1527,37 +1632,32 @@ getDaysTaken(order: any, stage: string): number | string {
   }
 
   downloadDispatchSummary(order: any) {
-    const doc = new jsPDF();
+    const doc = new jsPDF()
 
-    doc.text('Dispatch Order Summary', 14, 16);
+    doc.text("Dispatch Order Summary", 14, 16)
 
     autoTable(doc, {
       startY: 24,
-      head: [['Field', 'Value']],
+      head: [["Field", "Value"]],
       body: [
-        ['Item Details', order.itemDetails || ''],
-        ['PO Number', order.poNumber || ''],
-        ['Approximate Weight', order.approxWeight || ''],
+        ["Item Details", order.itemDetails || ""],
+        ["PO Number", order.poNumber || ""],
+        ["Approximate Weight", order.approxWeight || ""],
       ],
-    });
+    })
 
     // Stones Table
     if (order.stones && order.stones.length > 0) {
       // Get the last Y position from the previous table
-      const lastY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 40;
-      doc.text('Stones Information', 14, lastY);
+      const lastY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 40
+      doc.text("Stones Information", 14, lastY)
       autoTable(doc, {
         startY: lastY + 5,
-        head: [['Type', 'Pieces', 'Weight (g)', 'Weight (ct)']],
-        body: order.stones.map((stone: any) => [
-          stone.type,
-          stone.pieces,
-          stone.weightGrams,
-          stone.weightCarats,
-        ]),
-      });
+        head: [["Type", "Pieces", "Weight (g)", "Weight (ct)"]],
+        body: order.stones.map((stone: any) => [stone.type, stone.pieces, stone.weightGrams, stone.weightCarats]),
+      })
     }
 
-    doc.save(`Dispatch_Summary_${order.workOrderNumber}.pdf`);
+    doc.save(`Dispatch_Summary_${order.workOrderNumber}.pdf`)
   }
 }

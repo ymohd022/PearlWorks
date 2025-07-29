@@ -7,12 +7,17 @@ export interface DispatchOrder {
   netWeight: number
   dispatchedBy: string
   status: "ready" | "dispatched"
+  images: string[]
+  expectedWastage?: number
+  stones?: any[]
 }
 
 export interface DispatchUpdateRequest {
   orderCompletedDate: string
   dispatchedBy: string
   status: "dispatched"
+  grossWeight: number // Add grossWeight
+  images: string[] 
 }
 
 export interface DispatchStatistics {
